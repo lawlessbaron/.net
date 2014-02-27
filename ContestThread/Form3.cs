@@ -109,7 +109,7 @@ namespace ContestThread
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(13, 13);
+            this.label1.Location = new System.Drawing.Point(13, 5);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(80, 13);
             this.label1.TabIndex = 0;
@@ -119,7 +119,7 @@ namespace ContestThread
             // 
             this.label2.AutoSize = true;
             this.label2.ForeColor = System.Drawing.Color.Red;
-            this.label2.Location = new System.Drawing.Point(89, 13);
+            this.label2.Location = new System.Drawing.Point(89, 5);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(11, 13);
             this.label2.TabIndex = 1;
@@ -128,7 +128,7 @@ namespace ContestThread
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(16, 33);
+            this.label3.Location = new System.Drawing.Point(16, 25);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(112, 13);
             this.label3.TabIndex = 2;
@@ -136,7 +136,7 @@ namespace ContestThread
             // 
             // textBox1
             // 
-            this.textBox1.Location = new System.Drawing.Point(135, 33);
+            this.textBox1.Location = new System.Drawing.Point(135, 25);
             this.textBox1.Multiline = true;
             this.textBox1.Name = "textBox1";
             this.textBox1.Size = new System.Drawing.Size(231, 110);
@@ -145,7 +145,7 @@ namespace ContestThread
             // label4
             // 
             this.label4.AutoSize = true;
-            this.label4.Location = new System.Drawing.Point(16, 178);
+            this.label4.Location = new System.Drawing.Point(16, 170);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(44, 13);
             this.label4.TabIndex = 4;
@@ -153,7 +153,7 @@ namespace ContestThread
             // 
             // textBox2
             // 
-            this.textBox2.Location = new System.Drawing.Point(135, 178);
+            this.textBox2.Location = new System.Drawing.Point(135, 170);
             this.textBox2.Multiline = true;
             this.textBox2.Name = "textBox2";
             this.textBox2.Size = new System.Drawing.Size(231, 110);
@@ -163,7 +163,7 @@ namespace ContestThread
             // label5
             // 
             this.label5.AutoSize = true;
-            this.label5.Location = new System.Drawing.Point(132, 162);
+            this.label5.Location = new System.Drawing.Point(132, 154);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(244, 13);
             this.label5.TabIndex = 6;
@@ -172,7 +172,7 @@ namespace ContestThread
             // label6
             // 
             this.label6.AutoSize = true;
-            this.label6.Location = new System.Drawing.Point(372, 32);
+            this.label6.Location = new System.Drawing.Point(372, 24);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(105, 13);
             this.label6.TabIndex = 7;
@@ -180,7 +180,7 @@ namespace ContestThread
             // 
             // textBox3
             // 
-            this.textBox3.Location = new System.Drawing.Point(491, 32);
+            this.textBox3.Location = new System.Drawing.Point(491, 24);
             this.textBox3.Multiline = true;
             this.textBox3.Name = "textBox3";
             this.textBox3.Size = new System.Drawing.Size(231, 110);
@@ -189,7 +189,7 @@ namespace ContestThread
             // label7
             // 
             this.label7.AutoSize = true;
-            this.label7.Location = new System.Drawing.Point(372, 164);
+            this.label7.Location = new System.Drawing.Point(372, 156);
             this.label7.Name = "label7";
             this.label7.Size = new System.Drawing.Size(58, 13);
             this.label7.TabIndex = 9;
@@ -197,7 +197,7 @@ namespace ContestThread
             // 
             // textBox4
             // 
-            this.textBox4.Location = new System.Drawing.Point(491, 164);
+            this.textBox4.Location = new System.Drawing.Point(491, 156);
             this.textBox4.Name = "textBox4";
             this.textBox4.Size = new System.Drawing.Size(231, 20);
             this.textBox4.TabIndex = 10;
@@ -205,7 +205,7 @@ namespace ContestThread
             // label8
             // 
             this.label8.AutoSize = true;
-            this.label8.Location = new System.Drawing.Point(372, 221);
+            this.label8.Location = new System.Drawing.Point(372, 213);
             this.label8.Name = "label8";
             this.label8.Size = new System.Drawing.Size(61, 13);
             this.label8.TabIndex = 11;
@@ -213,7 +213,7 @@ namespace ContestThread
             // 
             // textBox5
             // 
-            this.textBox5.Location = new System.Drawing.Point(491, 221);
+            this.textBox5.Location = new System.Drawing.Point(491, 213);
             this.textBox5.Multiline = true;
             this.textBox5.Name = "textBox5";
             this.textBox5.Size = new System.Drawing.Size(231, 69);
@@ -222,7 +222,7 @@ namespace ContestThread
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(16, 312);
+            this.button1.Location = new System.Drawing.Point(12, 287);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(75, 23);
             this.button1.TabIndex = 13;
@@ -232,7 +232,7 @@ namespace ContestThread
             // 
             // button3
             // 
-            this.button3.Location = new System.Drawing.Point(243, 312);
+            this.button3.Location = new System.Drawing.Point(239, 287);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(103, 23);
             this.button3.TabIndex = 15;
@@ -243,7 +243,7 @@ namespace ContestThread
             // linkLabel1
             // 
             this.linkLabel1.AutoSize = true;
-            this.linkLabel1.Location = new System.Drawing.Point(97, 317);
+            this.linkLabel1.Location = new System.Drawing.Point(93, 292);
             this.linkLabel1.Name = "linkLabel1";
             this.linkLabel1.Size = new System.Drawing.Size(140, 13);
             this.linkLabel1.TabIndex = 16;
@@ -253,7 +253,7 @@ namespace ContestThread
             // 
             // Form3
             // 
-            this.ClientSize = new System.Drawing.Size(728, 338);
+            this.ClientSize = new System.Drawing.Size(725, 313);
             this.Controls.Add(this.linkLabel1);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.button1);
