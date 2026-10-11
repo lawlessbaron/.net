@@ -1,7 +1,7 @@
 import { html, render, icon, load, fmt, auec, usd, norm, img, store, toast, copy, errorBox } from '../lib.js';
 import { getFleet, saveFleet, addShip, removeShip } from '../fleetstore.js';
 import { session } from '../account.js';
-import { recolour, paintFor } from '../shipart.js';
+import { recolour, paintFor, cutout, relayed, wikiWidth } from '../shipart.js';
 
 // Example fleet shown (and clearly labelled) until the user adds their own ships.
 const EXAMPLE = ['Avenger Titan', 'Cutlass Black', 'Prospector', 'Vulture', 'Freelancer MAX', 'C2 Hercules Starlifter', 'Carrack', 'Ursa', '890 Jump', 'Pisces C8X Expedition'];
@@ -73,7 +73,7 @@ export default async function fleet(main, ctx = {}) {
       <div class="stat-row" style="margin-bottom:16px">${summary(list)}</div>
 
       <div class="fleet-tabs seg" id="fleet-tabs">
-        ${[['lineup', 'Hangar lineup'], ['cards', 'Ships'], ['stats', 'Fleet analysis']].map(([v, l]) => html`<button type="button" data-v="${v}" class="${state.view === v ? 'on' : ''}">${l}</button>`)}
+        ${[['lineup', 'Hangar lineup'], ['3d', '3D hangar'], ['cards', 'Ships'], ['stats', 'Fleet analysis']].map(([v, l]) => html`<button type="button" data-v="${v}" class="${state.view === v ? 'on' : ''}">${l}</button>`)}
       </div>
       <a class="btn btn-sm" href="#/studio?t=fleet" style="margin-left:8px;vertical-align:top">${icon('play')} Make a share image</a>
       <div id="fleet-view"></div>
@@ -98,6 +98,7 @@ export default async function fleet(main, ctx = {}) {
     const isExample = getFleet().length === 0;
     if (state.view === 'cards') return cardsView(host, isExample);
     if (state.view === 'stats') return statsView(host, ships);
+    if (state.view === '3d') return hangar3d(host);
     return lineupView(host);
   }
 
@@ -191,12 +192,13 @@ async function publicFleet(main, handle, byId, ships) {
       </div>
     </div>
     <div class="stat-row" style="margin-bottom:16px">${summary(resolved)}</div>
-    <div class="fleet-tabs seg" id="fleet-tabs">${[['lineup', 'Hangar lineup'], ['stats', 'Fleet analysis'], ['list', 'Ships']].map(([v, l], i) => html`<button type="button" data-v="${v}" class="${i ? '' : 'on'}">${l}</button>`)}</div>
+    <div class="fleet-tabs seg" id="fleet-tabs">${[['lineup', 'Hangar lineup'], ['3d', '3D hangar'], ['stats', 'Fleet analysis'], ['list', 'Ships']].map(([v, l], i) => html`<button type="button" data-v="${v}" class="${i ? '' : 'on'}">${l}</button>`)}</div>
     <div id="fleet-view"></div>
     <p class="muted" style="margin-top:16px">Want a page like this? <a href="#/fleet">Build your fleet</a> and sign in to share it.</p>`);
   const host = document.getElementById('fleet-view');
   const show = v => {
     if (v === 'stats') return statsView(host, ships);
+    if (v === '3d') return hangar3d(host);
     if (v === 'list') return render(host, html`<div class="cards">${resolved.map(({ entry, ship: s }) => html`<a class="card" href="#/ships/${s.id}"><div class="card-media">${img(s.img, s.name)}</div><div class="card-body"><div class="card-title">${entry.name || s.name}</div><div class="card-sub">${s.maker || ''}${entry.insurance ? ` · ${entry.insurance}` : ''}</div></div></a>`)}</div>`);
     return lineupView(host);
   };
@@ -471,6 +473,50 @@ function statsView(host, allShips) {
     </div>`);
 }
 
+// ---------------------------------------------------------------- 3D hangar (whole fleet)
+const MAX_3D = 24;
+function hangar3d(host) {
+  const withModel = resolved.filter(x => x.ship.holo);
+  const list = withModel.slice().sort((a, b) => (b.ship.length || 0) - (a.ship.length || 0)).slice(0, MAX_3D);
+  const skipped = resolved.length - list.length;
+  render(host, html`
+    <div class="viewer3d hangar3d" id="h3d">
+      <div class="v3d-status" id="h3d-status">
+        <div style="display:grid;gap:10px;justify-items:center;text-align:center;max-width:420px;pointer-events:auto">
+          <b style="font-family:var(--display);font-size:1.2rem;color:var(--fg)">Your fleet in 3D</b>
+          <span>${list.length} ship models, about ${Math.round(list.length * 6)} MB to download. Big fleets take a moment.</span>
+          <button class="btn btn-primary" type="button" id="h3d-go">${icon('play')} Load 3D hangar</button>
+        </div>
+      </div>
+      <div class="lineup-tools" style="left:10px;right:auto"><div class="seg" id="h3d-mode"><button type="button" data-m="paint" class="on">Painted</button><button type="button" data-m="holo">Hologram</button></div></div>
+      <div class="lineup-tools"><button class="btn btn-sm" type="button" id="h3d-reset">Reset view</button><button class="btn btn-sm" type="button" id="h3d-full">Full screen</button></div>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin-top:8px">Drag to orbit, scroll to zoom, right-drag to pan, click a name to fly to that ship. 3D models from <a href="https://fleetyards.net" target="_blank" rel="noopener noreferrer">FleetYards</a> (RSI Holoviewer meshes, shown in each ship's hull colour).${skipped > 0 ? ` ${skipped} ship${skipped > 1 ? 's' : ''} without a model ${skipped > 1 ? 'are' : 'is'} left out${withModel.length > MAX_3D ? `, and only the ${MAX_3D} largest are loaded` : ''}.` : ''}</p>`);
+  let viewer = null;
+  const host3 = document.getElementById('h3d');
+  document.getElementById('h3d-go').addEventListener('click', async () => {
+    const status = document.getElementById('h3d-status');
+    status.textContent = 'Loading the 3D engine…';
+    const { mountFleet } = await import('../viewer3d.js');
+    if (!host3.isConnected) return;
+    const accent = cssVar('--accent');
+    viewer = mountFleet(host3, list.map(({ entry, ship: s }) => ({
+      id: s.id, name: entry.name || s.name, url: s.holo, length: s.length || 20, beam: s.beam || (s.length || 20) * 0.6, color: paintFor(s),
+    })), {
+      accent,
+      onProgress: (i, n) => { status.textContent = i >= n ? '' : `Loading ship ${Math.min(n, Math.floor(i) + 1)} of ${n}…`; status.hidden = i >= n; },
+      onPick: it => toast(it.name),
+    });
+  });
+  document.getElementById('h3d-mode').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    document.querySelectorAll('#h3d-mode button').forEach(x => x.classList.toggle('on', x === b));
+    viewer?.setMode(b.dataset.m);
+  });
+  document.getElementById('h3d-reset').addEventListener('click', () => viewer?.reset());
+  document.getElementById('h3d-full').addEventListener('click', () => { document.fullscreenElement ? document.exitFullscreen?.() : host3.requestFullscreen?.().catch(() => toast('Full screen is not available here', 'warn')); });
+}
+
 // ---------------------------------------------------------------- lineup (to-scale canvas)
 // Ships are drawn from their real top-down renders (FleetYards fleetchart images, nose
 // pointing left in the source), rotated nose-up and scaled to true length and beam.
@@ -503,6 +549,23 @@ function tinted(sp, color) {
   return c;
 }
 
+// Cut-outs of the wiki's in-game top views are made one at a time in idle moments so a
+// big fleet never freezes the page.
+const cutQueue = [];
+let cutBusy = false;
+function queueCut(sp, done) {
+  if (sp.cut !== undefined || sp.queued) return;
+  sp.queued = true;
+  cutQueue.push(() => { sp.cut = cutout(sp.img) || null; done(); });
+  if (!cutBusy) runCuts();
+}
+function runCuts() {
+  cutBusy = !!cutQueue.length;
+  if (!cutBusy) return;
+  const next = cutQueue.shift();
+  (window.requestIdleCallback || (f => setTimeout(f, 16)))(() => { next(); runCuts(); });
+}
+
 function lineupView(host) {
   const mode = store.get('lineupMode', 'real');
   const order = store.get('lineupOrder', 'size');
@@ -523,10 +586,12 @@ function lineupView(host) {
     </div>
     <div class="legend" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px">
       ${[...new Set(resolved.map(x => careerOf(x.ship)))].map(c => html`<div><span style="background:${cssVar(CAREER_COLOR[c] || '--muted')}"></span>${c}</div>`)}
-      <div class="muted">True-to-scale top views. Zoom in close and the full-resolution render loads. Ships without an official painted render are shown in their manufacturer's usual colours. Renders: <a href="https://fleetyards.net" target="_blank" rel="noopener noreferrer">FleetYards</a>.</div>
+      <div class="muted">True-to-scale top views from in-game screenshots (Star Citizen Wiki) and renders (FleetYards). Zoom in close for full resolution. Renders: <a href="https://fleetyards.net" target="_blank" rel="noopener noreferrer">FleetYards</a>.</div>
     </div>`);
   const canvas = document.getElementById('lineup-canvas');
   const wrap = document.getElementById('lineup');
+  let hasRelay = false;
+  fetch('/api/health').then(r => { hasRelay = r.ok; if (hasRelay) redraw(); }).catch(() => {});
   const ctx = canvas.getContext('2d');
 
   // World boxes: width = beam, height = length (nose up). Use the render's own extents when known.
@@ -577,7 +642,26 @@ function lineupView(host) {
   function drawShip(it, px, py, w, h, col) {
     const s = it.ship;
     // Level of detail: swap to the full-resolution render when the ship is big on screen.
-    // Textured mode prefers the painted render; hologram tints the plain one.
+    // Textured mode: in-game top view (cut out of its starfield) first, then the
+    // painted render, then the plain render in the maker's colours.
+    if (mode === 'real' && s.views?.above && hasRelay) {
+      const big = h * dpr > 700;
+      const sp = sprite(relayed(wikiWidth(s.views.above.url, big ? 1600 : 800)), redraw);
+      const spLo = big ? sprite(relayed(wikiWidth(s.views.above.url, 800)), redraw) : sp;
+      for (const x of [sp, spLo]) if (x?.ok) queueCut(x, redraw);
+      const cut = sp?.cut || spLo?.cut;
+      if (cut) {
+        ctx.save();
+        ctx.translate(px + w / 2, py + h / 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.globalAlpha = hover && hover !== it ? 0.7 : 1;
+        const bw = h * (cut.canvas.height / cut.canvas.width);
+        ctx.drawImage(cut.canvas, -h / 2, -bw / 2, h, bw);
+        ctx.restore();
+        if (hover === it) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.strokeRect(px - 3, py - 3, w + 6, h + 6); ctx.setLineDash([]); }
+        return;
+      }
+    }
     const loUrl = mode === 'real' && s.topC ? s.topC : s.top;
     const hiUrl = mode === 'real' && s.topC ? s.topCHi : s.topHi;
     const wantHi = hiUrl && h * dpr > 1100;

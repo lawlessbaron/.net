@@ -3,7 +3,7 @@ import { session } from '../account.js';
 import { drawCard, recordCard, loadImage, FORMATS, PALETTE, shortNum } from '../studio/render.js';
 import { events } from '../content/events.js';
 import { REFERRAL } from '../content/site.js';
-import { recolour, paintFor } from '../shipart.js';
+import { recolour, paintFor, cutout, wikiWidth } from '../shipart.js';
 
 const ACCENTS = [['Amber', '#f0a33a'], ['Teal', '#63c7bf'], ['Crimson', '#ec6a58'], ['Violet', '#b48ae8'], ['Sky', '#6aa8e8'], ['Lime', '#9bd45a']];
 const PERSONAL = [['fleet', 'My fleet'], ['ship', 'Ship spotlight'], ['rep', 'My reputation']];
@@ -23,7 +23,15 @@ async function buildFleet(L, opts) {
   const fleet = store.get('fleet', []);
   const entries = fleet.length ? fleet : ['Avenger Titan', 'Cutlass Black', 'Prospector', 'Vulture', 'Carrack', 'C2 Hercules Starlifter', 'Freelancer MAX', 'Ursa'].map(n => ({ shipId: L.ships.find(s => s.name === n || s.name.endsWith(' ' + n))?.id })).filter(e => e.shipId);
   const ships = entries.map(e => L.shipById.get(e.shipId)).filter(Boolean);
-  const imgs = await Promise.all(ships.map(s => loadImage(opts.style === 'real' && s.topC ? s.topC : s.top)));
+  // Textured: in-game top view cut out of its starfield, else painted render, else plain render.
+  const imgs = await Promise.all(ships.map(async s => {
+    if (opts.style === 'real' && s.views?.above) {
+      const im = await loadImage(wikiWidth(s.views.above.url, 1000));
+      const cut = im && cutout(im);
+      if (cut) return { cut: cut.canvas };
+    }
+    return loadImage(opts.style === 'real' && s.topC ? s.topC : s.top);
+  }));
   const acc = (session.user?.rsiHandle && { handle: session.user.rsiHandle, ...(session.user.rsiCard || {}) }) || store.get('account', null);
   const avatar = acc?.avatar ? await loadImage(acc.avatar) : null;
   const name = acc?.handle ? `@${acc.handle}` : 'My fleet';
@@ -31,7 +39,7 @@ async function buildFleet(L, opts) {
     eyebrow: fleet.length ? 'Fleet manifest' : 'Example fleet',
     title: acc?.moniker || name, avatar, style: opts.style,
     ships: ships.map((s, i) => ({ name: s.name, L: s.top && s.fcLen ? s.fcLen : s.length || 10, B: s.top && s.fcBeam ? s.fcBeam : s.beam || 6, career: careerOf(s),
-      img: opts.style === 'real' && !s.topC && imgs[i] ? recolour(imgs[i], paintFor(s)) : imgs[i] })),
+      img: imgs[i]?.cut || (opts.style === 'real' && !s.topC && imgs[i] ? recolour(imgs[i], paintFor(s)) : imgs[i]) })),
     stats: [
       { label: 'Ships', value: ships.length },
       { label: 'Cargo', value: ships.reduce((n, s) => n + (s.cargo || 0), 0), format: v => `${fmt(v)} SCU` },
@@ -45,12 +53,13 @@ async function buildFleet(L, opts) {
 
 async function buildShip(L, shipId, eyebrow) {
   const s = L.shipById.get(shipId) || L.ships.find(x => x.side);
+  const photo = s.views?.isometric ? await loadImage(wikiWidth(s.views.isometric.url, 1600)) : null;
   let [side, top] = await Promise.all([loadImage(s.angleC || s.sideC || s.side), s.side || s.sideC ? null : loadImage(s.topC || s.top)]);
   if (side && !s.angleC && !s.sideC) side = recolour(side, paintFor(s));
   if (top && !s.topC) top = recolour(top, paintFor(s));
   const max = k => Math.max(...L.ships.filter(x => !x.ground).map(x => x[k] || 0));
   const data = {
-    ship: s, side, top, eyebrow,
+    ship: s, side, top, photo, eyebrow,
     stats: [['SCM speed', s.scm, max('scm'), ' m/s'], ['Cargo', s.cargo, max('cargo'), ' SCU'], ['Shields', s.shield, max('shield')], ['Pilot DPS', s.dps, max('dps')], ['Hull', s.hp, max('hp')], ['Quantum range', s.qtRange, max('qtRange'), ' Gm']],
     tiles: [
       { label: 'In game', value: s.buy?.[0]?.price ? `${shortNum(s.buy[0].price)} aUEC` : 'Pledge only', size: 34 },
@@ -162,9 +171,9 @@ export default async function studio(main, ctx) {
   try { [L, missions] = await Promise.all([lookups(), load('missions')]); } catch (e) { render(main, html`<div class="empty"><h2>Couldn't load data</h2><p>${e.message}</p></div>`); return; }
   await fontsReady();
   const marketingAllowed = !!session.user?.admin || (session.ready && !session.enabled);
-  const shipsWithArt = L.ships.filter(s => s.side || s.top).sort((a, b) => a.name.localeCompare(b.name));
+  const shipsWithArt = L.ships.filter(s => s.views || s.side || s.top).sort((a, b) => a.name.localeCompare(b.name));
   const today = new Date().toISOString().slice(0, 10);
-  const shipOfDay = date => seededPick(shipsWithArt.filter(s => s.buy?.length && (s.angleC || s.sideC) && !s.ground && s.scm && (s.cargo || s.dps)), date);
+  const shipOfDay = date => seededPick(shipsWithArt.filter(s => s.buy?.length && (s.views?.isometric || s.angleC || s.sideC) && !s.ground && s.scm && (s.cargo || s.dps)), date);
   const state = {
     template: ctx.params.t || 'fleet', format: 'square', accent: PALETTE.accent, style: 'real', referral: true,
     shipId: ctx.params.id || shipOfDay(today).id,

@@ -559,3 +559,25 @@ main.enter { animation: page-in .35s ease both; }
 .bp-img a { position: relative; }
 .bp-tint { position: absolute; inset: 0; background: color-mix(in srgb, var(--hull) 82%, white); mix-blend-mode: multiply; pointer-events: none;
   -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
+
+/* in-game views */
+.ig-main { display: block; position: relative; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #000; cursor: zoom-in; aspect-ratio: 16 / 9; }
+.ig-main img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .6s ease; }
+.ig-main:hover img { transform: scale(1.02); }
+.ig-hint { position: absolute; right: 10px; bottom: 10px; display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 6px; background: #000a; color: #fff; font-size: .82rem; }
+.ig-thumbs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
+.ig-thumbs button { padding: 0; border: 2px solid var(--line); border-radius: 6px; overflow: hidden; background: #000; cursor: pointer; position: relative; aspect-ratio: 16 / 9; }
+.ig-thumbs button.on { border-color: var(--accent); }
+.ig-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ig-thumbs span { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 6px; background: #000a; color: #fff; font: 600 .7rem var(--display); letter-spacing: .08em; text-transform: uppercase; text-align: left; }
+.zoom-modal { position: fixed; inset: 0; z-index: 75; background: #000; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.zoom-bar { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #0b1116; color: #e3eaef; border-bottom: 1px solid #2a3a46; }
+.zoom-bar b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--display); }
+.zoom-stage { position: relative; overflow: hidden; cursor: grab; touch-action: none; }
+.zoom-stage:active { cursor: grabbing; }
+.zoom-stage img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; user-select: none; }
+.hangar3d { height: min(78vh, 640px); }
+.h3d-labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.h3d-label { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; white-space: nowrap; font: 600 .78rem var(--display); letter-spacing: .04em;
+  color: var(--fg); background: color-mix(in srgb, var(--bg) 75%, transparent); border: 1px solid var(--line); border-radius: 4px; padding: 3px 7px; }
+.h3d-label:hover { border-color: var(--accent); color: var(--accent); }

@@ -36,7 +36,7 @@ async function getText(url, { tries = 4, cache = true } = {}) {
   let lastErr;
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'StarCitizenHub data builder (fan project)', Accept: 'application/json, application/xml, text/xml, */*' } });
+      const res = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { 'User-Agent': 'VerseAtlas data builder (fan project; github.com/lawlessbaron)', Accept: 'application/json, application/xml, text/xml, */*' } });
       if (res.status === 429) { await sleep(5000 * (i + 1)); continue; }
       if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`);
       const text = await res.text();
@@ -474,6 +474,8 @@ async function buildShips() {
     if (twin) Object.assign(s, { topC: twin.topC, topCHi: twin.topCHi, sideC: s.sideC || twin.sideC, sideCHi: s.sideCHi || twin.sideCHi, angleC: s.angleC || twin.angleC });
   }
 
+  try { attachWikiViews(ships, await wikiViewFiles()); } catch (e) { console.warn('  wiki views unavailable:', e.message); }
+
   // Paints for every model (FleetYards), written to their own file.
   const paints = [];
   const withPaints = ships.filter(x => x.fySlug && fyBySlug.get(x.fySlug)?.hasPaints);
@@ -509,6 +511,67 @@ async function buildShips() {
   ships.sort((a, b) => (a.maker || '').localeCompare(b.maker || '') || a.name.localeCompare(b.name));
   await write('ships.json', ships);
   return { ships: ships.length, paints: paints.length };
+}
+
+// ---------------------------------------------------------------- in-game ship views (Star Citizen Wiki)
+// The wiki's "Ship profile" table has in-game screenshots of every ship (and many paints)
+// from six angles, named "<Ship> in space - <Angle>.jpg".
+const WIKI_MW = 'https://starcitizen.tools/api.php';
+const ANGLES = ['Isometric', 'Above', 'Port', 'Front', 'Rear', 'Below'];
+
+async function wikiViewFiles() {
+  const titles = new Set();
+  for (const angle of ANGLES) {
+    for (let offset = 0; offset < 5000; offset += 500) {
+      const q = `${WIKI_MW}?action=query&list=search&srsearch=${encodeURIComponent(`intitle:"in space - ${angle}"`)}&srnamespace=6&srlimit=500&sroffset=${offset}&format=json`;
+      const r = await getJson(q);
+      for (const h of r.query?.search || []) if (/ in space - (Isometric|Above|Port|Front|Rear|Below)\.(jpe?g|png|webp)$/i.test(h.title)) titles.add(h.title);
+      if (!r.continue) break;
+    }
+  }
+  // Resolve image URLs (full size + a 1600 px rendition) in batches of 50.
+  const list = [...titles];
+  const urls = new Map();
+  for (let i = 0; i < list.length; i += 50) {
+    const batch = list.slice(i, i + 50);
+    const r = await getJson(`${WIKI_MW}?action=query&titles=${encodeURIComponent(batch.join('|'))}&prop=imageinfo&iiprop=url|size&iiurlwidth=1600&format=json`);
+    for (const pg of Object.values(r.query?.pages || {})) {
+      const ii = pg.imageinfo?.[0];
+      if (ii) urls.set(pg.title, { full: ii.url, url: ii.thumburl || ii.url, w: ii.width, h: ii.height });
+    }
+  }
+  return urls;
+}
+
+function attachWikiViews(ships, files) {
+  const key = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const byName = new Map();
+  for (const s of ships) {
+    for (const n of [s.name, s.fullName, s.maker && s.name.startsWith(s.maker.split(' ')[0]) ? s.name.split(' ').slice(1).join(' ') : null]) if (n && !byName.has(key(n))) byName.set(key(n), s);
+  }
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+  let views = 0, paints = 0;
+  for (const [title, info] of files) {
+    const m = title.match(/^File:(.+?) in space - (\w+)\./i);
+    if (!m) continue;
+    const base = key(m[1]), angle = m[2].toLowerCase();
+    let ship = byName.get(base), paint = null;
+    if (!ship) {
+      const prefix = names.find(n => base.startsWith(n + ' '));
+      if (prefix) { ship = byName.get(prefix); paint = m[1].slice(m[1].length - (base.length - prefix.length) + 1).trim(); }
+    }
+    if (!ship) continue;
+    const view = { url: info.url, full: info.full };
+    if (paint) {
+      ship.paintViews ||= {};
+      ship.paintViews[paint] ||= {};
+      ship.paintViews[paint][angle] = view; paints++;
+    } else {
+      ship.views ||= {};
+      ship.views[angle] = view; views++;
+    }
+  }
+  console.log(`  wiki in-game views: ${views} ship views, ${paints} paint views`);
 }
 
 // ---------------------------------------------------------------- items (weapons, armor, components, consumables)

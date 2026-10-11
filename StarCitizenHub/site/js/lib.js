@@ -230,3 +230,55 @@ document.addEventListener('click', e => {
 export const videoCard = v => html`<a class="card video-card" href="${v.link}" data-video="${v.id}" data-title="${v.title}">
   <div class="card-media"><img src="${v.thumb}" alt="" loading="lazy" referrerpolicy="no-referrer"><span class="play-badge" aria-hidden="true">▶</span></div>
   <div class="card-body"><div class="card-title" style="font-size:.95rem">${v.title}</div><div class="card-sub">${v.channel || ''}${v.ago ? ` · ${v.ago}` : ''}</div></div></a>`;
+
+// Full-screen zoomable image viewer (wheel / pinch / buttons to zoom, drag to pan).
+export function openZoom(src, title = '', hiSrc = null) {
+  const wrap = document.createElement('div');
+  wrap.className = 'zoom-modal';
+  wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-label', title || 'Image');
+  wrap.innerHTML = `<div class="zoom-bar"><b></b><span class="muted mono zoom-pct">100%</span><button type="button" class="btn btn-sm" data-z="in">+</button><button type="button" class="btn btn-sm" data-z="out">−</button><button type="button" class="btn btn-sm" data-z="fit">Fit</button><a class="btn btn-sm" target="_blank" rel="noopener noreferrer">Original</a><button type="button" class="icon-btn" data-z="close" aria-label="Close">✕</button></div><div class="zoom-stage"><img alt="" draggable="false"></div>`;
+  wrap.querySelector('b').textContent = title;
+  const img = wrap.querySelector('img'), stage = wrap.querySelector('.zoom-stage'), pct = wrap.querySelector('.zoom-pct');
+  wrap.querySelector('a').href = hiSrc || src;
+  img.alt = title;
+  let s = 1, ox = 0, oy = 0, fitS = 1;
+  const apply = () => { img.style.transform = `translate(${ox}px, ${oy}px) scale(${s})`; pct.textContent = `${Math.round(s / fitS * 100)}%`; };
+  const fit = () => {
+    const r = stage.getBoundingClientRect();
+    fitS = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    s = fitS; ox = (r.width - img.naturalWidth * s) / 2; oy = (r.height - img.naturalHeight * s) / 2; apply();
+  };
+  const zoomAt = (mx, my, f) => { const ns = Math.min(fitS * 12, Math.max(fitS * 0.5, s * f)); ox = mx - (mx - ox) * ns / s; oy = my - (my - oy) * ns / s; s = ns; apply(); };
+  img.onload = fit;
+  img.src = src;
+  // Swap in the full-resolution file once the user zooms past the preview's detail.
+  let hiLoaded = !hiSrc || hiSrc === src;
+  const maybeHi = () => {
+    if (hiLoaded || s / fitS < 1.6) return;
+    hiLoaded = true;
+    const hi = new Image();
+    hi.onload = () => { const k = img.naturalWidth / hi.naturalWidth; img.src = hi.src; s *= k; fitS *= k; apply(); };
+    hi.src = hiSrc;
+  };
+  const pts = new Map(); let drag = null, pinch = null;
+  stage.addEventListener('pointerdown', e => { stage.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.offsetX, e.offsetY]); if (pts.size === 1) drag = { x: e.clientX, y: e.clientY, ox, oy }; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s }; drag = null; } });
+  stage.addEventListener('pointermove', e => {
+    if (pts.has(e.pointerId)) pts.set(e.pointerId, [e.offsetX, e.offsetY]);
+    if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch.s * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d / s); maybeHi(); return; }
+    if (drag) { ox = drag.ox + e.clientX - drag.x; oy = drag.oy + e.clientY - drag.y; apply(); }
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; drag = null; };
+  stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+  stage.addEventListener('wheel', e => { e.preventDefault(); const r = stage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0018)); maybeHi(); }, { passive: false });
+  stage.addEventListener('dblclick', e => { const r = stage.getBoundingClientRect(); zoomAt(e.clientX - r.left, e.clientY - r.top, 2); maybeHi(); });
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  wrap.addEventListener('click', e => {
+    const z = e.target.closest('[data-z]')?.dataset.z; if (!z) return;
+    const r = stage.getBoundingClientRect();
+    if (z === 'close') close(); else if (z === 'fit') fit(); else { zoomAt(r.width / 2, r.height / 2, z === 'in' ? 1.5 : 1 / 1.5); maybeHi(); }
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.append(wrap);
+  wrap.querySelector('[data-z="close"]').focus();
+}

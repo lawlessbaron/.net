@@ -262,7 +262,24 @@ const SCENES = {
     const imgH = portrait ? H * 0.4 : H * (W > H ? 0.4 : 0.36);
     const iy = y + 60 * u;
     const im = d.side || d.top;
-    if (im) {
+    if (d.photo) {
+      // Real in-game screenshot as a framed hero image that drifts in slowly.
+      const p = seg(t, 0.05, 0.45);
+      const bw = W - 112 * u, bh = imgH + 20 * u, bx = 56 * u, byy = iy - 10 * u;
+      const ar = d.photo.naturalWidth / d.photo.naturalHeight;
+      const zoom = 1.12 - 0.08 * ease(t);
+      let dw = bw * zoom, dh = dw / ar;
+      if (dh < bh * zoom) { dh = bh * zoom; dw = dh * ar; }
+      ctx.save();
+      ctx.globalAlpha = p;
+      rrect(ctx, bx, byy, bw, bh, 14 * u); ctx.clip();
+      ctx.drawImage(d.photo, bx + (bw - dw) / 2, byy + (bh - dh) / 2, dw, dh);
+      const vg = ctx.createLinearGradient(0, byy, 0, byy + bh);
+      vg.addColorStop(0, '#0000'); vg.addColorStop(0.75, '#0000'); vg.addColorStop(1, PALETTE.bg + 'cc');
+      ctx.fillStyle = vg; ctx.fillRect(bx, byy, bw, bh);
+      ctx.restore();
+      rrect(ctx, bx, byy, bw, bh, 14 * u); ctx.strokeStyle = o.accent + '88'; ctx.lineWidth = 2 * u; ctx.stroke();
+    } else if (im) {
       const p = seg(t, 0.08, 0.5);
       const ar = (im.naturalWidth || im.width) / (im.naturalHeight || im.height);
       let w = W - 112 * u, h = w / ar;

@@ -1,4 +1,4 @@
-import { html, render, icon, load, lookups, fmt, auec, shortAuec, usd, norm, img, errorBox, ext, toast, systemClass } from '../lib.js';
+import { html, render, icon, load, lookups, fmt, auec, shortAuec, usd, norm, img, errorBox, ext, toast, systemClass, openZoom } from '../lib.js';
 import { skuTable } from './pledge.js';
 import { paintFor } from '../shipart.js';
 import { addShip, fleetCount, getCompare, toggleCompare, clearCompare } from '../fleetstore.js';
@@ -187,14 +187,15 @@ async function detail(main, id, all) {
       </div>
     </div>
 
-    ${s.top || s.side || s.holo || s.paints ? html`
+    ${s.views || s.top || s.side || s.holo || s.paints ? html`
     <section class="panel viewer-panel" style="margin-bottom:20px">
       <div class="panel-title">
         <h2>Look around</h2>
         <div class="seg" id="vtabs">
-          ${s.top || s.side ? html`<button type="button" data-v="blueprint" class="on">Blueprint</button>` : ''}
-          ${s.holo ? html`<button type="button" data-v="3d" class="${s.top || s.side ? '' : 'on'}">3D model</button>` : ''}
-          ${s.paints ? html`<button type="button" data-v="paints" class="${s.top || s.side || s.holo ? '' : 'on'}">Paints (${s.paints})</button>` : ''}
+          ${s.views ? html`<button type="button" data-v="ingame" class="on">In-game views</button>` : ''}
+          ${s.top || s.side ? html`<button type="button" data-v="blueprint" class="${s.views ? '' : 'on'}">Blueprint</button>` : ''}
+          ${s.holo ? html`<button type="button" data-v="3d" class="${s.views || s.top || s.side ? '' : 'on'}">3D model</button>` : ''}
+          ${s.paints ? html`<button type="button" data-v="paints" class="${s.views || s.top || s.side || s.holo ? '' : 'on'}">Paints (${s.paints})</button>` : ''}
         </div>
       </div>
       <div id="vbody"></div>
@@ -344,7 +345,25 @@ function setupViews(s) {
   const show = async v => {
     viewer?.dispose(); viewer = null;
     tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-    if (v === 'blueprint') {
+    if (v === 'ingame') {
+      const ANG = [['isometric', 'Isometric'], ['above', 'Above'], ['port', 'Side'], ['front', 'Front'], ['rear', 'Rear'], ['below', 'Below']];
+      const sets = [['Standard', s.views], ...Object.entries(s.paintViews || {}).sort((a, b) => a[0].localeCompare(b[0]))].filter(([, v2]) => v2 && Object.keys(v2).length);
+      let set = 0, angle = ANG.find(([k]) => s.views[k])?.[0] || 'isometric';
+      const drawIg = () => {
+        const views = sets[set][1];
+        if (!views[angle]) angle = ANG.find(([k]) => views[k])?.[0];
+        const cur = views[angle];
+        render(body, html`
+          ${sets.length > 1 ? html`<div class="field" style="margin-bottom:10px"><label for="ig-paint">Paint</label><select id="ig-paint">${sets.map(([n], i) => html`<option value="${i}" ${i === set ? 'selected' : ''}>${n}</option>`)}</select></div>` : ''}
+          <button type="button" class="ig-main" id="ig-open" title="Open full screen and zoom"><img src="${cur.url}" alt="${s.name} ${sets[set][0]} paint, ${angle} view" loading="eager" referrerpolicy="no-referrer"><span class="ig-hint">${icon('search')} Click to zoom (up to 4K)</span></button>
+          <div class="ig-thumbs">${ANG.filter(([k]) => views[k]).map(([k, l]) => html`<button type="button" data-a="${k}" class="${k === angle ? 'on' : ''}"><img src="${views[k].url}" alt="" loading="lazy" referrerpolicy="no-referrer"><span>${l}</span></button>`)}</div>
+          <p class="muted" style="font-size:.85rem;margin-top:8px">In-game screenshots from the <a href="${s.wikiPage || 'https://starcitizen.tools/'}" target="_blank" rel="noopener noreferrer">Star Citizen Wiki</a>${sets.length > 1 ? `, with ${sets.length - 1} paint${sets.length > 2 ? 's' : ''} to compare` : ''}.</p>`);
+        body.querySelector('.ig-thumbs').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (b) { angle = b.dataset.a; drawIg(); } });
+        document.getElementById('ig-paint')?.addEventListener('change', e => { set = +e.target.value; drawIg(); });
+        document.getElementById('ig-open').addEventListener('click', () => openZoom(cur.url, `${s.name} · ${sets[set][0]} · ${ANG.find(a => a[0] === angle)[1]}`, cur.full));
+      };
+      drawIg();
+    } else if (v === 'blueprint') {
       const painted = !!(s.topC || s.sideC);
       const approx = !painted && !!(s.top || s.side);
       const drawBp = useC => {
