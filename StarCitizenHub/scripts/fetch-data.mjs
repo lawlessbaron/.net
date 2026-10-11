@@ -32,10 +32,10 @@ const want = name => ONLY.length === 0 || ONLY.includes(name);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getText(url, { tries = 4, cache = true } = {}) {
-  // Long URLs are shortened for the file name; continuation requests add a hash of the
-  // full URL so page 2+ of a query never collides with page 1.
+  // Long URLs are shortened for the file name plus a hash of the full URL, so two
+  // requests that only differ near the end never share a cache entry.
   let name = url.replace(/[^a-z0-9]+/gi, '_').slice(0, 200);
-  if (/[?&](continue|imcontinue|sroffset)=/.test(url) && url.length > 200) name = name.slice(0, 160) + '_' + createHash('sha1').update(url).digest('hex').slice(0, 16);
+  if (url.length > 200) name = name.slice(0, 160) + '_' + createHash('sha1').update(url).digest('hex').slice(0, 16);
   const key = path.join(CACHE, name);
   if (cache && !FRESH && existsSync(key)) return readFile(key, 'utf8');
   let lastErr;
