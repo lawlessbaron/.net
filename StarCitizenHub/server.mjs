@@ -23,6 +23,12 @@
 //   POST /api/suggestions/:id/vote   { on: bool }
 //   POST /api/suggestions/:id/status { status, note }   (admins)
 //   DELETE /api/suggestions/:id      (author or admin)
+//   GET  /api/news                live comm-links, videos, RSI service status, game versions
+//   GET  /api/feed                leaks & rumors feed from followed Discord channels
+//   GET  /api/feed/media/:id/:n   attachment image (refreshes Discord's expiring links)
+//   POST /api/feed/:id/approve    { approved }   (admins)
+//   DELETE /api/feed/:id          hide an item   (admins)
+//   POST /api/feed/poll           check Discord now (admins)
 //   GET  /api/export              download all of your data
 //   POST /api/delete-account
 //
@@ -36,6 +42,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as db from './server/db.mjs';
+import * as feeds from './server/feeds.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'site');
 const PORT = Number(process.env.PORT) || 8080;
@@ -236,6 +243,26 @@ async function api(req, res, url) {
     return send(res, 200, prof, undefined, { 'Cache-Control': 'public, max-age=60' });
   }
 
+  if (p === '/api/news' && method === 'GET') {
+    const n = feeds.getNews().updated ? feeds.getNews() : await feeds.refreshNews();
+    return send(res, 200, n, undefined, { 'Cache-Control': 'public, max-age=120' });
+  }
+  if (p === '/api/feed' && method === 'GET') {
+    if (!db.dbEnabled()) return send(res, 200, { configured: false, items: [] });
+    const viewer = await currentUser(req);
+    const admin = isAdmin(viewer);
+    const items = await db.listFeed({ includePending: admin && url.searchParams.get('pending') === '1', before: url.searchParams.get('before') || null });
+    return send(res, 200, { configured: feeds.feedConfigured(), autoPublish: process.env.FEED_AUTO_PUBLISH === '1', admin, items }, undefined, { 'Cache-Control': 'no-store' });
+  }
+  const fm = p.match(/^\/api\/feed\/media\/(\d+)\/(\d+)$/);
+  if (fm && method === 'GET') {
+    if (!db.dbEnabled()) throw httpError(404, 'Not found');
+    const to = await feeds.freshAttachmentUrl(fm[1], Number(fm[2]));
+    if (!to) throw httpError(404, 'Not found');
+    res.writeHead(302, { Location: to, 'Cache-Control': 'public, max-age=1800' });
+    return res.end();
+  }
+
   if (p === '/api/suggestions' && method === 'GET') {
     if (!db.dbEnabled()) throw httpError(503, 'The suggestion board needs accounts to be switched on.');
     const viewer = await currentUser(req);
@@ -321,6 +348,14 @@ async function api(req, res, url) {
     return send(res, 200, { ok: true });
   }
 
+  const am = p.match(/^\/api\/feed\/(\d+)(\/approve)?$/);
+  if (am || p === '/api/feed/poll') {
+    if (!isAdmin(user)) throw httpError(403, 'Only admins can moderate the feed.');
+    if (p === '/api/feed/poll' && method === 'POST') return send(res, 200, { added: await feeds.pollDiscord() });
+    if (am[2] && method === 'POST') { await db.setFeedApproved(am[1], !!(await readJson(req)).approved); return send(res, 200, { ok: true }); }
+    if (!am[2] && method === 'DELETE') { await db.hideFeedItem(am[1]); return send(res, 200, { ok: true }); }
+  }
+
   if (p === '/api/export' && method === 'GET') {
     return send(res, 200, JSON.stringify(await db.exportUser(user.id), null, 2), 'application/json; charset=utf-8', { 'Content-Disposition': 'attachment; filename="verse-atlas-data.json"', 'Cache-Control': 'no-store' });
   }
@@ -362,8 +397,10 @@ export const server = createServer(async (req, res) => {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const accounts = await db.initDb().catch(e => { console.error('Database unavailable, accounts disabled:', e.message); return false; });
+  feeds.startFeeds();
   server.listen(PORT, () => {
     console.log(`Verse Atlas running at http://localhost:${PORT}`);
+    console.log(feeds.feedConfigured() ? `Discord feed: following ${process.env.DISCORD_FEED_CHANNELS.split(',').length} channel(s)${process.env.FEED_AUTO_PUBLISH === '1' ? ', auto-publish on' : ', admin approval required'}` : 'Discord feed: off (set DISCORD_BOT_TOKEN and DISCORD_FEED_CHANNELS)');
     console.log(accounts ? (authEnabled() ? 'Accounts: on (Discord sign-in)' : 'Accounts: database ready, set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET to enable sign-in') : 'Accounts: off (no DATABASE_URL)');
   });
 }

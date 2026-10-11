@@ -57,6 +57,23 @@ async function migrate() {
       user_id       BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       PRIMARY KEY (suggestion_id, user_id)
     );
+    CREATE TABLE IF NOT EXISTS feed_items (
+      id            BIGSERIAL PRIMARY KEY,
+      source        TEXT NOT NULL,
+      source_id     TEXT NOT NULL UNIQUE,
+      channel_id    TEXT,
+      channel_label TEXT,
+      author_name   TEXT,
+      author_avatar TEXT,
+      content       TEXT NOT NULL DEFAULT '',
+      attachments   JSONB NOT NULL DEFAULT '[]',
+      embeds        JSONB NOT NULL DEFAULT '[]',
+      posted_at     TIMESTAMPTZ NOT NULL,
+      approved      BOOLEAN NOT NULL DEFAULT false,
+      hidden        BOOLEAN NOT NULL DEFAULT false,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS feed_items_posted ON feed_items(posted_at DESC);
     CREATE TABLE IF NOT EXISTS user_state (
       user_id    BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       key        TEXT NOT NULL,
@@ -169,5 +186,33 @@ export async function suggestionOwner(id) {
   return rows[0] ? String(rows[0].user_id) : null;
 }
 export const deleteSuggestion = id => q(`DELETE FROM suggestions WHERE id = $1`, [id]);
+
+// ---------------------------------------------------------------- community feed (Discord)
+export async function lastFeedId(channelId) {
+  const { rows } = await q(`SELECT source_id FROM feed_items WHERE channel_id = $1 ORDER BY posted_at DESC LIMIT 1`, [channelId]);
+  return rows[0]?.source_id || null;
+}
+export async function insertFeedItem(it) {
+  await q(`INSERT INTO feed_items (source, source_id, channel_id, channel_label, author_name, author_avatar, content, attachments, embeds, posted_at, approved)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11) ON CONFLICT (source_id) DO NOTHING`,
+    [it.source, it.sourceId, it.channelId, it.channelLabel, it.authorName, it.authorAvatar, it.content, JSON.stringify(it.attachments), JSON.stringify(it.embeds), it.postedAt, it.approved]);
+}
+export async function listFeed({ includePending = false, limit = 60, before = null } = {}) {
+  const params = [Math.min(200, limit)];
+  const where = ['NOT hidden'];
+  if (!includePending) where.push('approved');
+  if (before) { params.push(before); where.push(`posted_at < $${params.length}`); }
+  const { rows } = await q(`SELECT id, channel_label, author_name, author_avatar, content, attachments, embeds, posted_at, approved FROM feed_items WHERE ${where.join(' AND ')} ORDER BY posted_at DESC LIMIT $1`, params);
+  return rows.map(r => ({ ...r, id: String(r.id) }));
+}
+export const setFeedApproved = (id, on) => q(`UPDATE feed_items SET approved = $2 WHERE id = $1`, [id, !!on]);
+export const hideFeedItem = id => q(`UPDATE feed_items SET hidden = true WHERE id = $1`, [id]);
+export async function feedAttachment(id, idx) {
+  const { rows } = await q(`SELECT attachments FROM feed_items WHERE id = $1 AND NOT hidden`, [id]);
+  return rows[0]?.attachments?.[idx] || null;
+}
+export async function updateFeedAttachmentUrl(id, idx, url) {
+  await q(`UPDATE feed_items SET attachments = jsonb_set(attachments, $2::text[], to_jsonb($3::text)) WHERE id = $1`, [id, `{${idx},url}`, url]);
+}
 
 export async function closeDb() { await pool?.end(); pool = null; }

@@ -24,7 +24,7 @@ const NAV = [
   ]],
   ['Community', [
     ['#/events', 'calendar', 'Events & sales'],
-    ['#/news', 'radio', 'News, videos & links'],
+    ['#/news', 'radio', 'News & leaks'],
     ['#/suggestions', 'bolt', 'Suggestions'],
   ]],
 ];
