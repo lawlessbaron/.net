@@ -1,0 +1,14 @@
+{
+  "name": "verse-atlas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Verse Atlas: a new-player friendly Star Citizen field guide (missions, reputation, ships, items, shops, fleet viewer).",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "data": "node scripts/fetch-data.mjs",
+    "data:fresh": "node scripts/fetch-data.mjs --fresh",
+    "check": "node --check server.mjs && node --check scripts/fetch-data.mjs && node scripts/check.mjs"
+  },
+  "engines": { "node": ">=18" }
+}
