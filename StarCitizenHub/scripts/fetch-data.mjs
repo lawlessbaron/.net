@@ -519,13 +519,55 @@ async function buildShips() {
 const WIKI_MW = 'https://starcitizen.tools/api.php';
 const ANGLES = ['Isometric', 'Above', 'Port', 'Front', 'Rear', 'Below'];
 
+// Pass 1: search the wiki for every "<name> in space - <angle>" file and match names.
+async function wikiSearchViews(ships) {
+  const titles = new Set();
+  for (const angle of ANGLES) {
+    for (let offset = 0; offset < 5000; offset += 500) {
+      const r = await getJson(`${WIKI_MW}?action=query&list=search&srsearch=${encodeURIComponent(`intitle:"in space - ${angle}"`)}&srnamespace=6&srlimit=500&sroffset=${offset}&format=json`);
+      for (const h of r.query?.search || []) if (VIEW_RE.test(h.title)) titles.add(h.title);
+      if (!r.continue) break;
+    }
+  }
+  const key = n => String(n).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/mk ?ii\b/g, 'mk ii').replace(/[^a-z0-9]+/g, ' ').trim();
+  const byName = new Map();
+  const claim = (n, sh) => { const k = n && key(n); if (k && !byName.has(k)) byName.set(k, sh); };
+  for (const sh of ships) { claim(sh.name, sh); claim(sh.fullName, sh); }
+  for (const sh of ships) {
+    const w = sh.name.split(' ');
+    if (w.length > 1 && (/^[A-Z]{2,5}$/.test(w[0]) || (sh.maker && sh.name.startsWith(sh.maker.split(' ')[0])))) claim(w.slice(1).join(' '), sh);
+    if (w.length > 2) claim(w.slice(1).join(' '), sh);
+    claim(sh.name.replace(/\s+Mk I$/i, ''), sh);
+  }
+  const ALIAS = { 'mpuv 1c': 'MPUV Cargo', 'mpuv 1p': 'MPUV Personnel', 'mpuv 1t': 'MPUV Tractor', 'hercules c2': 'C2 Hercules Starlifter', 'hercules a2': 'A2 Hercules Starlifter', 'hercules m2': 'M2 Hercules Starlifter', 'c8': 'C8 Pisces', 'c8r': 'C8R Pisces Rescue', 'c8x': 'C8X Pisces Expedition', 'spirit c1': 'C1 Spirit', 'spirit a1': 'A1 Spirit', 'spirit e1': 'E1 Spirit', 'ares inferno': 'Ares Star Fighter Inferno', 'ares ion': 'Ares Star Fighter Ion', 'aurora cl': 'Aurora Mk I CL', 'aurora es': 'Aurora Mk I ES', 'aurora ln': 'Aurora Mk I LN', 'aurora lx': 'Aurora Mk I LX', 'aurora mr': 'Aurora Mk I MR', 'aurora se': 'Aurora Mk I SE' };
+  for (const [a, n] of Object.entries(ALIAS)) { const sh = ships.find(x => x.name === n); if (sh && !byName.has(a)) byName.set(a, sh); }
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length);
+  const wanted = new Map();
+  for (const t of titles) {
+    const m = t.match(VIEW_RE);
+    const base = key(m[1]);
+    let ship = byName.get(base), paint = null;
+    if (!ship) {
+      const prefix = names.find(n => base.startsWith(n + ' '));
+      if (prefix) { ship = byName.get(prefix); const w = m[1].split(/\s+/); paint = w.slice(w.length - (base.split(' ').length - prefix.split(' ').length)).join(' '); }
+    }
+    if (!ship) continue;
+    const angle = m[2].toLowerCase() === 'starboard' ? 'port' : m[2].toLowerCase();
+    if (paint && !['isometric', 'above', 'port'].includes(angle)) continue;
+    wanted.set(t, [{ ship, angle, paint }]);
+  }
+  return wanted;
+}
+
 const VIEW_RE = /^File:(.+?) in (?:space|SelfLand) - (Isometric|Above|Port|Starboard|Front|Rear|Below)(?: \d)?\.(?:jpe?g|png|webp)$/i;
 
 // Looks at the images used on each ship's own wiki page (more reliable than search) and
 // picks the profile screenshots: the plain ship plus every paint shown there.
 async function wikiPageViews(ships) {
+  const wanted = await wikiSearchViews(ships); // file title -> [{ ship, angle, paint }]
+  const covered = new Set([...wanted.values()].flat().filter(u => !u.paint).map(u => u.ship));
   const pageOf = s => decodeURIComponent((s.wikiPage || '').replace(/^https?:\/\/starcitizen\.tools\//, '').replace(/_/g, ' ')) || s.name;
-  const pages = [...new Set(ships.map(pageOf))];
+  const pages = [...new Set(ships.filter(sh => !covered.has(sh)).map(pageOf))];
   const imagesByPage = new Map();
   const redirects = new Map();
   for (let i = 0; i < pages.length; i += 40) {
@@ -539,14 +581,13 @@ async function wikiPageViews(ships) {
         if (!imagesByPage.has(pg.title)) imagesByPage.set(pg.title, []);
         imagesByPage.get(pg.title).push(...(pg.images || []).map(x => x.title));
       }
-      if (!r.continue?.imcontinue) break;
-      cont = `&imcontinue=${encodeURIComponent(r.continue.imcontinue)}`;
+      if (!r.continue) break;
+      cont = Object.entries(r.continue).map(([k, v]) => `&${k}=${encodeURIComponent(v)}`).join('');
     }
   }
   const resolve = t => { let x = t; for (let k = 0; k < 3 && redirects.has(x); k++) x = redirects.get(x); return x; };
-  // Pick files per ship page.
-  const wanted = new Map(); // file title -> [{ ship, angle, paint }]
-  for (const s of ships) {
+  // Pick files per ship page for ships the search didn't cover.
+  for (const s of ships.filter(sh => !covered.has(sh))) {
     const files = (imagesByPage.get(resolve(pageOf(s))) || []).map(t => [t, t.match(VIEW_RE)]).filter(([, m]) => m);
     if (!files.length) continue;
     // The plain ship is the shortest base name on its page; longer names are paints.
