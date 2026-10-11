@@ -15,6 +15,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { latestVideos } from '../server/youtube.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'site', 'data');
@@ -409,6 +410,11 @@ async function buildShips() {
       sideHi: fy?.media?.sideView?.url || null,
       holo: fy?.holo || null,
       fySlug: fy?.slug || null,
+      topC: fy?.media?.topViewColored?.mediumUrl || null,
+      topCHi: fy?.media?.topViewColored?.url || null,
+      sideC: fy?.media?.sideViewColored?.mediumUrl || null,
+      sideCHi: fy?.media?.sideViewColored?.url || null,
+      angleC: fy?.media?.angledViewColored?.mediumUrl || null,
       fcLen: num(fy?.metrics?.fleetchartOffsetLength) || null,
       fcBeam: num(fy?.metrics?.fleetchartOffsetBeam) || null,
       fleetyards: fy ? `https://fleetyards.net/ships/${fy.slug}` : null,
@@ -442,6 +448,9 @@ async function buildShips() {
       img: media.storeImage?.mediumUrl || media.angledView?.mediumUrl || null, imgFull: media.storeImage?.url || null,
       top: media.topView?.mediumUrl || null, topHi: media.topView?.url || null,
       side: media.sideView?.mediumUrl || null, sideHi: media.sideView?.url || null,
+      topC: media.topViewColored?.mediumUrl || null, topCHi: media.topViewColored?.url || null,
+      sideC: media.sideViewColored?.mediumUrl || null, sideCHi: media.sideViewColored?.url || null,
+      angleC: media.angledViewColored?.mediumUrl || null,
       holo: m.holo || null, fySlug: m.slug,
       fcLen: num(met.fleetchartOffsetLength) || null, fcBeam: num(met.fleetchartOffsetBeam) || null,
       fleetyards: `https://fleetyards.net/ships/${m.slug}`, brochure: m.brochure || null,
@@ -457,6 +466,12 @@ async function buildShips() {
     const twin = ships.find(o => o !== s && o.top && (o.name === b || baseName(o.name) === b))
       || (s.chassis != null && ships.find(o => o !== s && o.top && o.chassis === s.chassis && o.length && s.length && Math.abs(o.length - s.length) / s.length < 0.04));
     if (twin) Object.assign(s, { top: twin.top, topHi: twin.topHi, side: s.side || twin.side, sideHi: s.sideHi || twin.sideHi, holo: s.holo || twin.holo, fcLen: twin.fcLen, fcBeam: twin.fcBeam, outlineFrom: twin.name });
+  }
+  // Textured renders for variants come from the base hull only when the paint is the same model line.
+  for (const s of ships) {
+    if (s.topC || !s.outlineFrom) continue;
+    const twin = ships.find(o => o.name === s.outlineFrom && o.topC);
+    if (twin) Object.assign(s, { topC: twin.topC, topCHi: twin.topCHi, sideC: s.sideC || twin.sideC, sideCHi: s.sideCHi || twin.sideCHi, angleC: s.angleC || twin.angleC });
   }
 
   // Paints for every model (FleetYards), written to their own file.
@@ -716,9 +731,8 @@ async function buildNews() {
     });
     console.log(`  comm-links: ${out.commLinks.length}`);
   } catch (e) { console.warn('  comm-links unavailable:', e.message); }
-  // YouTube's public feed is sometimes blocked from cloud hosts; the site falls back to channel links.
   try {
-    out.videos = parseFeed(await getText('https://www.youtube.com/feeds/videos.xml?channel_id=UCTeLqJq1mXUX5WWoNXLmOIA', { cache: false, tries: 1 }), 24);
+    out.videos = await latestVideos(24);
     console.log(`  videos: ${out.videos.length}`);
   } catch (e) { console.warn('  videos unavailable:', e.message); }
   try { out.versions = await uex('game_versions'); } catch { /* optional */ }

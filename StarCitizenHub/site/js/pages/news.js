@@ -1,4 +1,4 @@
-import { html, raw, render, icon, load, timeAgo, errorBox, esc, toast } from '../lib.js';
+import { html, raw, render, icon, load, timeAgo, errorBox, esc, toast, videoCard } from '../lib.js';
 import { session, api } from '../account.js';
 
 const yt = q => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
@@ -13,6 +13,7 @@ const LINKS = [
     ['Knowledge base', 'https://support.robertsspaceindustries.com/hc/en-us', 'Official help articles and support'],
     ['Galactapedia', 'https://robertsspaceindustries.com/galactapedia', 'Official lore encyclopedia'],
     ['Star Citizen on YouTube', 'https://www.youtube.com/@RobertsSpaceInd', 'Inside Star Citizen, Star Citizen Live, trailers'],
+    ['Squadron 42 on YouTube', 'https://www.youtube.com/@Squadron42', 'The single-player campaign'],
   ]],
   ['Community tools', [
     ['Star Citizen Wiki', 'https://starcitizen.tools/', 'The community encyclopedia'],
@@ -188,13 +189,26 @@ function feedCard(it, admin) {
 }
 
 function videos(body, data) {
+  const vids = data.videos || [];
+  const chans = [...new Set(vids.map(v => v.channel).filter(Boolean))];
+  let chan = '';
+  const draw = () => render(document.getElementById('vgrid'), vids.filter(v => !chan || v.channel === chan).slice(0, 30).map(videoCard));
   render(body, html`
-    ${data.videos?.length ? html`<div class="cards">${data.videos.slice(0, 18).map(v => html`
-      <a class="card" href="${v.link}" target="_blank" rel="noopener noreferrer">
-        <div class="card-media">${v.thumb ? html`<img src="${v.thumb}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>
-        <div class="card-body"><div class="card-title" style="font-size:.95rem">${v.title}</div><div class="card-sub">${timeAgo(v.date)}</div></div>
-      </a>`)}</div>` : html`<p class="muted" style="margin-bottom:12px">The official video feed isn't reachable right now. Here's where to watch:</p>`}
-    <div class="panel" style="margin-top:16px"><h3 style="margin-bottom:8px">Videos to start with</h3><div class="link-list">${LINKS[3][1].map(([t, u, d]) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><span>${t}<small>${d}</small></span>${icon('ext')}</a>`)}</div></div>`);
+    ${vids.length ? html`
+      <div class="filters"><div class="seg" id="vchan"><button type="button" class="on" data-c="">All channels</button>${chans.map(c => html`<button type="button" data-c="${c}">${c}</button>`)}</div>
+        <a class="btn btn-sm" href="https://www.youtube.com/@RobertsSpaceInd" target="_blank" rel="noopener noreferrer">Star Citizen on YouTube ${icon('ext', 'i-sm')}</a>
+        <a class="btn btn-sm" href="https://www.youtube.com/@Squadron42" target="_blank" rel="noopener noreferrer">Squadron 42 on YouTube ${icon('ext', 'i-sm')}</a></div>
+      <div class="cards" id="vgrid"></div>` : html`<p class="muted" style="margin-bottom:12px">The video list isn't reachable right now. Here's where to watch:</p>`}
+    <div class="panel" style="margin-top:16px"><h3 style="margin-bottom:8px">More videos to start with</h3><div class="link-list">${LINKS[3][1].map(([t, u, d]) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><span>${t}<small>${d}</small></span>${icon('ext')}</a>`)}</div></div>`);
+  if (vids.length) {
+    draw();
+    document.getElementById('vchan').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      chan = b.dataset.c;
+      document.querySelectorAll('#vchan button').forEach(x => x.classList.toggle('on', x === b));
+      draw();
+    });
+  }
 }
 
 function linksTab(body) {

@@ -15,6 +15,7 @@ A new-player friendly field guide to **Star Citizen**: everything in one easy-to
 | **My fleet** | Link your RSI handle (public profile), import your hangar (bookmarklet or paste), and view your fleet **to scale using real top-down ship renders**, in hologram or realistic mode, with zoom-to-full-resolution, plus fleet analysis (what roles you're missing). |
 | **Events & sales** | Next event countdown, yearly event timeline, current discounts and warbonds. |
 | **News, videos & links** | Latest RSI comm-links and the community tools everyone uses. |
+| **Share studio** | Anyone can make a picture or 6-second video of their fleet, a ship, or their reputation in square, landscape or story sizes, with a ready-made caption. Admins also get a marketing panel that auto-generates a week of posts (ship of the day, next event, top contracts, rep climbs, deals, patch numbers). |
 | **Suggestions** | Signed-in users post ideas and upvote them; admins set status and reply. |
 | **Account** | Discord sign-in, synced data, contract log, RSI handle verification, public fleet page. |
 
@@ -58,6 +59,19 @@ Turn it on by setting `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRE
    - `ADMIN_DISCORD_IDS` = your Discord user ID (Discord → Settings → Advanced → Developer Mode, then right-click your name → Copy User ID). Separate several with commas.
 5. **Deploy.** The logs should say `Accounts: on (Discord sign-in)`.
 
+### Leaks feed (Discord)
+
+The **News & leaks** page can follow channels in a Discord server, for example the leaks channel
+`https://discord.com/channels/422137133923434506/422137614854914048` (server `422137133923434506`, channel `422137614854914048`).
+
+1. In your Discord app (the same one used for sign-in) open **Bot**, create the bot, copy its token, and switch on **Message Content Intent**.
+2. A server admin of that Discord server must add the bot:
+   `https://discord.com/oauth2/authorize?client_id=<DISCORD_CLIENT_ID>&scope=bot&permissions=66560`
+   (View Channels + Read Message History). Discord doesn't allow reading a server without this. Scraping with a user account breaks Discord's rules and gets accounts banned.
+3. Set `DISCORD_BOT_TOKEN`, `DISCORD_FEED_CHANNELS=422137614854914048:Leaks` and optionally `FEED_AUTO_PUBLISH=1`.
+
+By default new posts wait for an admin to approve them under **News & leaks → Leaks & rumors**. Keep approval on if the channel shares NDA (Evocati) material, which CIG has taken down before.
+
 To refresh game data after a patch, run `npm run data` locally and push the updated `site/data/` files (Railway redeploys automatically).
 
 ## Refresh the game data
@@ -75,6 +89,8 @@ Run it after each patch. Sources:
 - [UEX Corp](https://uexcorp.space): shop terminals and in-game prices
 - [FleetYards](https://fleetyards.net): top/side renders, 3D holo models, paints, concept ships
 - [Roberts Space Industries](https://robertsspaceindustries.com): citizen profiles, pledge store
+
+**Ship art.** Top, side and angled renders and 3D models come from FleetYards. Painted (textured) renders exist for about 120 ships and variants; the rest are shown from their detailed plain-hull render tinted in the manufacturer's usual hull colour and labelled as approximate. Public 3D models have no textures, so the viewer offers Painted (hull colour), Plain and Hologram modes. Fully textured models would have to be extracted from the game files, which belong to CIG.
 
 CIG has **no official public API or login for third-party sites**, so account linking reads the public citizen page, and hangar import uses a bookmarklet that runs on the RSI site in the user's own browser (the same approach other hangar tools use).
 

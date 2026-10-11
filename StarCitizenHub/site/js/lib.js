@@ -201,3 +201,32 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]');
   if (b) copy(b.dataset.copy, `Copied ${b.dataset.copy}`);
 });
+
+// In-page YouTube player (privacy-enhanced embed). Close with Esc, the X, or a click outside.
+export function openVideo(id, title = 'Video') {
+  if (!/^[\w-]{6,20}$/.test(id)) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'video-modal';
+  wrap.setAttribute('role', 'dialog');
+  wrap.setAttribute('aria-modal', 'true');
+  wrap.setAttribute('aria-label', title);
+  wrap.innerHTML = `<div class="video-box"><div class="video-bar"><b></b><a target="_blank" rel="noopener noreferrer">Open on YouTube</a><button type="button" class="icon-btn" aria-label="Close video">✕</button></div>
+    <div class="video-frame"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0" title="" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe></div></div>`;
+  wrap.querySelector('b').textContent = title;
+  wrap.querySelector('iframe').title = title;
+  wrap.querySelector('a').href = `https://www.youtube.com/watch?v=${id}`;
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  wrap.addEventListener('click', e => { if (e.target === wrap || e.target.closest('button')) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.append(wrap);
+  wrap.querySelector('button').focus();
+}
+document.addEventListener('click', e => {
+  const v = e.target.closest('[data-video]');
+  if (v) { e.preventDefault(); openVideo(v.dataset.video, v.dataset.title); }
+});
+
+export const videoCard = v => html`<a class="card video-card" href="${v.link}" data-video="${v.id}" data-title="${v.title}">
+  <div class="card-media"><img src="${v.thumb}" alt="" loading="lazy" referrerpolicy="no-referrer"><span class="play-badge" aria-hidden="true">▶</span></div>
+  <div class="card-body"><div class="card-title" style="font-size:.95rem">${v.title}</div><div class="card-sub">${v.channel || ''}${v.ago ? ` · ${v.ago}` : ''}</div></div></a>`;

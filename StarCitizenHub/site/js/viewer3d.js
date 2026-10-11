@@ -33,7 +33,7 @@ function holoMaterial(color) {
   });
 }
 
-export function mountViewer(host, { url, length = 20, accent = '#f0a33a', onProgress }) {
+export function mountViewer(host, { url, length = 20, accent = '#f0a33a', paint = null, onProgress }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: false });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -59,7 +59,7 @@ export function mountViewer(host, { url, length = 20, accent = '#f0a33a', onProg
   grid.material.transparent = true; grid.material.opacity = 0.35;
   scene.add(grid);
 
-  let model = null, originals = new Map(), mode = 'real', disposed = false;
+  let model = null, originals = new Map(), painted = new Map(), mode = paint ? 'paint' : 'real', disposed = false;
   const holo = holoMaterial(accent);
 
   const draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
@@ -77,8 +77,18 @@ export function mountViewer(host, { url, length = 20, accent = '#f0a33a', onProg
       const center = box2.getCenter(new THREE.Vector3());
       model.position.sub(center);
       model.position.y += (box2.max.y - box2.min.y) / 2;
-      model.traverse(o => { if (o.isMesh) originals.set(o, o.material); });
+      model.traverse(o => {
+        if (!o.isMesh) return;
+        originals.set(o, o.material);
+        const glass = /glass|canopy|window/i.test(o.material?.name || '') || (o.material?.opacity ?? 1) < 1;
+        if (glass || !paint) { painted.set(o, o.material); return; }
+        const m = o.material.clone();
+        m.color = new THREE.Color(paint);
+        m.metalness = 0.55; m.roughness = 0.42;
+        painted.set(o, m);
+      });
       scene.add(model);
+      setMode(mode);
       const r = length * 0.9;
       camera.position.set(r * 1.1, r * 0.55, r * 1.25);
       controls.target.set(0, (box2.max.y - box2.min.y) / 3, 0);
@@ -107,7 +117,7 @@ export function mountViewer(host, { url, length = 20, accent = '#f0a33a', onProg
   function setMode(m) {
     mode = m;
     if (!model) return;
-    model.traverse(o => { if (o.isMesh) o.material = m === 'holo' ? holo : originals.get(o); });
+    model.traverse(o => { if (o.isMesh) o.material = m === 'holo' ? holo : m === 'paint' ? painted.get(o) : originals.get(o); });
     grid.material.opacity = m === 'holo' ? 0.5 : 0.35;
   }
   function dispose() {

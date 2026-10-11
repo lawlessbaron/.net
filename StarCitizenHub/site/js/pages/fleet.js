@@ -1,6 +1,7 @@
 import { html, render, icon, load, fmt, auec, usd, norm, img, store, toast, copy, errorBox } from '../lib.js';
 import { getFleet, saveFleet, addShip, removeShip } from '../fleetstore.js';
 import { session } from '../account.js';
+import { recolour, paintFor } from '../shipart.js';
 
 // Example fleet shown (and clearly labelled) until the user adds their own ships.
 const EXAMPLE = ['Avenger Titan', 'Cutlass Black', 'Prospector', 'Vulture', 'Freelancer MAX', 'C2 Hercules Starlifter', 'Carrack', 'Ursa', '890 Jump', 'Pisces C8X Expedition'];
@@ -74,6 +75,7 @@ export default async function fleet(main, ctx = {}) {
       <div class="fleet-tabs seg" id="fleet-tabs">
         ${[['lineup', 'Hangar lineup'], ['cards', 'Ships'], ['stats', 'Fleet analysis']].map(([v, l]) => html`<button type="button" data-v="${v}" class="${state.view === v ? 'on' : ''}">${l}</button>`)}
       </div>
+      <a class="btn btn-sm" href="#/studio?t=fleet" style="margin-left:8px;vertical-align:top">${icon('play')} Make a share image</a>
       <div id="fleet-view"></div>
 
       ${!isExample ? html`<div class="panel" style="margin-top:18px">
@@ -502,14 +504,14 @@ function tinted(sp, color) {
 }
 
 function lineupView(host) {
-  const mode = store.get('lineupMode', 'holo');
+  const mode = store.get('lineupMode', 'real');
   const order = store.get('lineupOrder', 'size');
   render(host, html`
     <div class="lineup" id="lineup">
       <canvas id="lineup-canvas" aria-label="Your ships drawn to scale from their real top-down outlines. Drag to pan, scroll or pinch to zoom, click a ship to open it." role="img"></canvas>
       <div class="lineup-hud"><span id="lineup-scale"></span><span>Drag to pan · scroll or pinch to zoom · click a ship</span></div>
       <div class="lineup-tools" style="left:10px;right:auto">
-        <div class="seg" id="lmode"><button type="button" data-m="holo" class="${mode === 'holo' ? 'on' : ''}">Hologram</button><button type="button" data-m="real" class="${mode === 'real' ? 'on' : ''}">Realistic</button></div>
+        <div class="seg" id="lmode"><button type="button" data-m="real" class="${mode === 'real' ? 'on' : ''}">Textured</button><button type="button" data-m="holo" class="${mode === 'holo' ? 'on' : ''}">Hologram</button></div>
         <div class="seg" id="lorder"><button type="button" data-o="size" class="${order === 'size' ? 'on' : ''}">By size</button><button type="button" data-o="role" class="${order === 'role' ? 'on' : ''}">By role</button></div>
       </div>
       <div class="lineup-tools">
@@ -521,7 +523,7 @@ function lineupView(host) {
     </div>
     <div class="legend" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px">
       ${[...new Set(resolved.map(x => careerOf(x.ship)))].map(c => html`<div><span style="background:${cssVar(CAREER_COLOR[c] || '--muted')}"></span>${c}</div>`)}
-      <div class="muted">True-to-scale top views. Zoom in close and the full-resolution render loads. Renders: <a href="https://fleetyards.net" target="_blank" rel="noopener noreferrer">FleetYards</a>.</div>
+      <div class="muted">True-to-scale top views. Zoom in close and the full-resolution render loads. Ships without an official painted render are shown in their manufacturer's usual colours. Renders: <a href="https://fleetyards.net" target="_blank" rel="noopener noreferrer">FleetYards</a>.</div>
     </div>`);
   const canvas = document.getElementById('lineup-canvas');
   const wrap = document.getElementById('lineup');
@@ -575,18 +577,24 @@ function lineupView(host) {
   function drawShip(it, px, py, w, h, col) {
     const s = it.ship;
     // Level of detail: swap to the full-resolution render when the ship is big on screen.
-    const wantHi = s.topHi && h * dpr > 1100;
-    const hi = wantHi ? sprite(s.topHi, redraw) : null;
-    const lo = sprite(s.top, redraw);
+    // Textured mode prefers the painted render; hologram tints the plain one.
+    const loUrl = mode === 'real' && s.topC ? s.topC : s.top;
+    const hiUrl = mode === 'real' && s.topC ? s.topCHi : s.topHi;
+    const wantHi = hiUrl && h * dpr > 1100;
+    const hi = wantHi ? sprite(hiUrl, redraw) : null;
+    const lo = sprite(loUrl, redraw);
     const sp = hi?.ok ? hi : lo?.ok ? lo : null;
     if (sp) {
-      const src = mode === 'holo' ? tinted(sp, col) : sp.img;
+      const src = mode === 'holo' ? tinted(sp, col) : s.topC ? sp.img : recolour(sp.img, paintFor(s));
       ctx.save();
       ctx.translate(px + w / 2, py + h / 2);
       ctx.rotate(Math.PI / 2); // source renders point nose-left; rotate to nose-up
       if (mode === 'holo' && items.length <= 40) { ctx.shadowColor = col; ctx.shadowBlur = hover === it ? 22 : 10; }
       ctx.globalAlpha = hover && hover !== it ? 0.7 : 1;
-      ctx.drawImage(src, -h / 2, -w / 2, h, w);
+      // Keep the render's own proportions: length runs along the box, width follows the image.
+      const iw = sp.img.naturalWidth, ih = sp.img.naturalHeight;
+      const bw = iw && ih ? h * (ih / iw) : w;
+      ctx.drawImage(src, -h / 2, -bw / 2, h, bw);
       ctx.restore();
       if (hover === it) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.strokeRect(px - 3, py - 3, w + 6, h + 6); ctx.setLineDash([]); }
       return;

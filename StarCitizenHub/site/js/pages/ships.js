@@ -1,5 +1,6 @@
 import { html, render, icon, load, lookups, fmt, auec, shortAuec, usd, norm, img, errorBox, ext, toast, systemClass } from '../lib.js';
 import { skuTable } from './pledge.js';
+import { paintFor } from '../shipart.js';
 import { addShip, fleetCount, getCompare, toggleCompare, clearCompare } from '../fleetstore.js';
 
 const PAGE = 48;
@@ -181,6 +182,7 @@ async function detail(main, id, all) {
         <div class="hero-actions">
           <button class="btn btn-primary" id="add-fleet" type="button">${icon('plus')} Add to my fleet${owned ? ` (${owned} owned)` : ''}</button>
           <button class="btn" id="cmp" type="button">${icon('scale')} ${getCompare().includes(s.id) ? 'Remove from compare' : 'Compare'}</button>
+          ${s.side || s.top ? html`<a class="btn btn-ghost" href="#/studio?t=ship&id=${s.id}">${icon('play')} Share</a>` : ''}
         </div>
       </div>
     </div>
@@ -312,6 +314,27 @@ async function detail(main, id, all) {
   });
 }
 
+// Average colour of an image's visible pixels (used to paint the untextured 3D mesh).
+async function sampleColor(url) {
+  if (!url) return null;
+  const { loadImage } = await import('../studio/render.js');
+  const im = await loadImage(url);
+  if (!im) return null;
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = Math.max(1, Math.round(64 * im.naturalHeight / im.naturalWidth));
+  const x = c.getContext('2d');
+  x.drawImage(im, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height).data;
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    const a = d[i + 3], lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+    if (a < 200 || lum < 25 || lum > 245) continue; // skip background, shadows and glare
+    r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+  }
+  if (n < 20) return null;
+  return `rgb(${Math.round(r / n)}, ${Math.round(g / n)}, ${Math.round(b / n)})`;
+}
+
 // Blueprint (top + side renders with dimensions), 3D model, and paints gallery.
 function setupViews(s) {
   const tabs = document.getElementById('vtabs');
@@ -322,26 +345,41 @@ function setupViews(s) {
     viewer?.dispose(); viewer = null;
     tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
     if (v === 'blueprint') {
-      render(body, html`<div class="blueprint">
-        ${s.top ? html`<figure class="bp-view">
-          <div class="bp-img"><a href="${s.topHi || s.top}" target="_blank" rel="noopener noreferrer" title="Open full resolution"><img src="${s.top}" alt="${s.name} seen from above" loading="lazy" crossorigin="anonymous"></a></div>
+      const painted = !!(s.topC || s.sideC);
+      const approx = !painted && !!(s.top || s.side);
+      const drawBp = useC => {
+        const top = useC && s.topC ? [s.topC, s.topCHi] : [s.top, s.topHi];
+        const side = useC && s.sideC ? [s.sideC, s.sideCHi] : [s.side, s.sideHi];
+        render(body, html`
+        ${painted || approx ? html`<div class="seg" id="bp-mode" style="margin-bottom:10px"><button type="button" data-c="1" class="${useC ? 'on' : ''}">${painted ? 'Textured' : 'Colour (approx.)'}</button><button type="button" data-c="0" class="${useC ? '' : 'on'}">Plain hull</button></div>` : ''}
+        <div class="blueprint ${approx && useC ? 'bp-approx' : ''}" style="--hull:${paintFor(s)}">
+        ${top[0] ? html`<figure class="bp-view">
+          <div class="bp-img"><a href="${top[1] || top[0]}" target="_blank" rel="noopener noreferrer" title="Open full resolution"><img src="${top[0]}" alt="${s.name} seen from above" loading="lazy" crossorigin="anonymous">${approx && useC ? html`<span class="bp-tint" style="-webkit-mask-image:url('${top[0]}');mask-image:url('${top[0]}')"></span>` : ''}</a></div>
           <figcaption><span>Top</span><span class="mono">${fmt(s.length, 1)} m long · ${fmt(s.beam, 1)} m wide</span></figcaption></figure>` : ''}
-        ${s.side ? html`<figure class="bp-view">
-          <div class="bp-img"><a href="${s.sideHi || s.side}" target="_blank" rel="noopener noreferrer" title="Open full resolution"><img src="${s.side}" alt="${s.name} seen from the side" loading="lazy" crossorigin="anonymous"></a></div>
+        ${side[0] ? html`<figure class="bp-view">
+          <div class="bp-img"><a href="${side[1] || side[0]}" target="_blank" rel="noopener noreferrer" title="Open full resolution"><img src="${side[0]}" alt="${s.name} seen from the side" loading="lazy" crossorigin="anonymous">${approx && useC ? html`<span class="bp-tint" style="-webkit-mask-image:url('${side[0]}');mask-image:url('${side[0]}')"></span>` : ''}</a></div>
           <figcaption><span>Side</span><span class="mono">${fmt(s.height, 1)} m tall</span></figcaption></figure>` : ''}
-      </div><p class="muted" style="font-size:.85rem;margin-top:8px">Click a view to open the full-resolution render. Renders from <a href="${s.fleetyards || 'https://fleetyards.net'}" target="_blank" rel="noopener noreferrer">FleetYards</a>.</p>`);
+        ${useC && s.angleC ? html`<figure class="bp-view">
+          <div class="bp-img"><img src="${s.angleC}" alt="${s.name} three-quarter view" loading="lazy" crossorigin="anonymous"></div>
+          <figcaption><span>Angled</span><span class="mono">${s.maker || ''}</span></figcaption></figure>` : ''}
+      </div><p class="muted" style="font-size:.85rem;margin-top:8px">${painted ? '' : approx && useC ? 'No official painted render exists for this ship, so it is shown in its manufacturer\'s usual hull colour (approximate). ' : ''}Click a view to open the full-resolution render. Renders from <a href="${s.fleetyards || 'https://fleetyards.net'}" target="_blank" rel="noopener noreferrer">FleetYards</a>.</p>`);
+        document.getElementById('bp-mode')?.addEventListener('click', e => { const b = e.target.closest('button'); if (b) drawBp(b.dataset.c === '1'); });
+      };
+      drawBp(painted || approx);
     } else if (v === '3d') {
       render(body, html`<div class="viewer3d" id="v3d"><div class="v3d-status" id="v3d-status">Loading 3D model…</div>
-        <div class="lineup-tools"><div class="seg" id="v3d-mode"><button type="button" data-m="real" class="on">Realistic</button><button type="button" data-m="holo">Hologram</button></div>
+        <div class="lineup-tools"><div class="seg" id="v3d-mode"><button type="button" data-m="paint" class="on">Painted</button><button type="button" data-m="real">Plain</button><button type="button" data-m="holo">Hologram</button></div>
         <button class="btn btn-sm" type="button" id="v3d-spin">Pause spin</button><button class="btn btn-sm" type="button" id="v3d-full">Full screen</button></div></div>
-        <p class="muted" style="font-size:.85rem;margin-top:8px">Drag to rotate, scroll or pinch to zoom, right-drag to pan. Grid squares are 10 m. Model from <a href="${s.fleetyards || 'https://fleetyards.net'}" target="_blank" rel="noopener noreferrer">FleetYards</a> (simplified holo-viewer mesh).</p>`);
+        <p class="muted" style="font-size:.85rem;margin-top:8px">Drag to rotate, scroll or pinch to zoom, right-drag to pan. Grid squares are 10 m. Model from <a href="${s.fleetyards || 'https://fleetyards.net'}" target="_blank" rel="noopener noreferrer">FleetYards</a>. Public 3D models have no textures, so "Painted" uses the ship's main hull colour (from its painted render, or its manufacturer's usual colour).</p>`);
       const host = document.getElementById('v3d');
       const status = document.getElementById('v3d-status');
       try {
         const { mountViewer } = await import('../viewer3d.js');
         if (!host.isConnected) return;
         const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#f0a33a';
-        viewer = mountViewer(host, { url: s.holo, length: s.length || 20, accent, onProgress: (p, bytes) => { status.textContent = p ? `Loading 3D model… ${Math.round(p * 100)}%` : `Loading 3D model… ${(bytes / 1e6).toFixed(1)} MB`; } });
+        // Colour from the official painted render when there is one, otherwise the maker's usual hull colour.
+        const paint = (s.angleC || s.sideC ? await sampleColor(s.angleC || s.sideC).catch(() => null) : null) || paintFor(s);
+        viewer = mountViewer(host, { url: s.holo, length: s.length || 20, accent, paint, onProgress: (p, bytes) => { status.textContent = p ? `Loading 3D model… ${Math.round(p * 100)}%` : `Loading 3D model… ${(bytes / 1e6).toFixed(1)} MB`; } });
         await viewer.ready;
         status.hidden = true;
       } catch (e) {

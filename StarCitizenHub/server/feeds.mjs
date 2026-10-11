@@ -8,6 +8,7 @@
 //   DISCORD_FEED_CHANNELS=123456789012345678:Leaks,234567890123456789:Datamining
 //   FEED_AUTO_PUBLISH=0        (1 = publish without admin approval)
 import * as db from './db.mjs';
+import { latestVideos } from './youtube.mjs';
 
 const WIKI = 'https://api.star-citizen.wiki/api/v2';
 const DISCORD = process.env.DISCORD_BASE_URL || 'https://discord.com';
@@ -22,15 +23,6 @@ async function json(url, opts = {}) {
   return r.json();
 }
 
-function parseYouTube(xml) {
-  return (xml.match(/<entry>[\s\S]*?<\/entry>/g) || []).slice(0, 18).map(e => ({
-    title: (e.match(/<title>([\s\S]*?)<\/title>/) || [])[1]?.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'"),
-    link: (e.match(/<link rel="alternate" href="([^"]+)"/) || [])[1],
-    date: (e.match(/<published>([^<]+)<\/published>/) || [])[1],
-    videoId: (e.match(/<yt:videoId>([^<]+)<\/yt:videoId>/) || [])[1],
-    thumb: (e.match(/<media:thumbnail url="([^"]+)"/) || [])[1],
-  }));
-}
 
 export async function refreshNews() {
   const tasks = [
@@ -46,8 +38,7 @@ export async function refreshNews() {
         };
       });
     }),
-    fetch('https://www.youtube.com/feeds/videos.xml?channel_id=UCTeLqJq1mXUX5WWoNXLmOIA', { headers: UA })
-      .then(r => (r.ok ? r.text() : Promise.reject(new Error(r.status)))).then(x => { news.videos = parseYouTube(x); }),
+    latestVideos(30).then(v => { if (v.length) news.videos = v; }),
     json('https://status.robertsspaceindustries.com/index.json').then(s => {
       news.status = { summary: s.summaryStatus, systems: (s.systems || []).map(x => ({ name: x.name, status: x.status, issues: (x.unresolvedIssues || []).length })), url: 'https://status.robertsspaceindustries.com/' };
     }),

@@ -23,6 +23,7 @@
 //   POST /api/suggestions/:id/vote   { on: bool }
 //   POST /api/suggestions/:id/status { status, note }   (admins)
 //   DELETE /api/suggestions/:id      (author or admin)
+//   GET  /api/img?u=<url>         same-origin copy of an allow-listed image (for share-image exports)
 //   GET  /api/news                live comm-links, videos, RSI service status, game versions
 //   GET  /api/feed                leaks & rumors feed from followed Discord channels
 //   GET  /api/feed/media/:id/:n   attachment image (refreshes Discord's expiring links)
@@ -177,6 +178,28 @@ function throttle(key, ms) {
   lastCall.set(key, Date.now());
 }
 
+// ---------------------------------------------------------------- image proxy
+// Share images are drawn on a canvas; images from other sites would block exporting
+// it, so allow-listed game-art hosts are relayed through here.
+const IMG_HOSTS = ['robertsspaceindustries.com', 'media.robertsspaceindustries.com', 'cdn.robertsspaceindustries.com', 'cdn.discordapp.com',
+  'media.starcitizen.tools', 'api.fleetyards.net', 'storage.fltyrd.net', 'assets.uexcorp.space'];
+const imgCache = new Map();
+async function proxyImage(res, raw) {
+  let target;
+  try { target = new URL(raw); } catch { throw httpError(400, 'Bad image address'); }
+  if (target.protocol !== 'https:' || !IMG_HOSTS.some(h => target.hostname === h || target.hostname.endsWith('.' + h))) throw httpError(400, 'Image host not allowed');
+  const hit = imgCache.get(target.href);
+  if (hit) return send(res, 200, hit.body, hit.type, { 'Cache-Control': 'public, max-age=86400' });
+  const r = await fetch(target, { headers: { 'User-Agent': 'VerseAtlas image relay' }, redirect: 'follow' });
+  const type = r.headers.get('content-type') || '';
+  if (!r.ok || !type.startsWith('image/')) throw httpError(502, 'Image unavailable');
+  const body = Buffer.from(await r.arrayBuffer());
+  if (body.length > 15 * 1024 * 1024) throw httpError(413, 'Image too large');
+  if (imgCache.size > 300) imgCache.delete(imgCache.keys().next().value);
+  imgCache.set(target.href, { body, type });
+  send(res, 200, body, type, { 'Cache-Control': 'public, max-age=86400' });
+}
+
 // ---------------------------------------------------------------- Discord OAuth
 function startDiscord(req, res) {
   if (!authEnabled()) throw httpError(503, 'Sign-in is not set up on this server.');
@@ -242,6 +265,8 @@ async function api(req, res, url) {
     if (!prof) return send(res, 404, { error: 'This citizen has no public fleet here.' });
     return send(res, 200, prof, undefined, { 'Cache-Control': 'public, max-age=60' });
   }
+
+  if (p === '/api/img' && method === 'GET') return proxyImage(res, url.searchParams.get('u') || '');
 
   if (p === '/api/news' && method === 'GET') {
     const n = feeds.getNews().updated ? feeds.getNews() : await feeds.refreshNews();

@@ -1,4 +1,4 @@
-import { html, render, icon, load, fmt, shortAuec, timeAgo, img, errorBox, referralCard } from '../lib.js';
+import { html, render, icon, load, fmt, shortAuec, timeAgo, img, errorBox, referralCard, videoCard } from '../lib.js';
 import { missionRow } from './missions.js';
 import { events } from '../content/events.js';
 
@@ -51,7 +51,7 @@ export default async function home(main, { meta }) {
     <section style="margin-bottom:28px">
       <div class="panel-title"><h2>Every ship, to scale</h2><a href="#/ships">Browse all ${fmt(ships.length)} ${icon('arrow', 'i-sm')}</a></div>
       <div class="fleetchart"><div class="fleetchart-row">
-        ${chart.map(s => html`<a class="fc-ship" href="#/ships/${s.id}"><img src="${s.side}" alt="${s.name}" loading="lazy" crossorigin="anonymous" style="width:${Math.max(70, Math.round(s.length * 5.2))}px"><span>${s.name}</span><small>${fmt(s.length, 0)} m</small></a>`)}
+        ${chart.map(s => html`<a class="fc-ship" href="#/ships/${s.id}"><img src="${s.sideC || s.side}" alt="${s.name}" loading="lazy" crossorigin="anonymous" style="width:${Math.max(70, Math.round(s.length * 5.2))}px"><span>${s.name}</span><small>${fmt(s.length, 0)} m</small></a>`)}
       </div></div>
     </section>` : ''}
 
@@ -102,6 +102,12 @@ export default async function home(main, { meta }) {
           </a>`)}</div>
       </div>
     </section>
+
+    ${news.videos?.length ? html`
+    <section style="margin-bottom:28px">
+      <div class="panel-title"><h2>Latest videos</h2><a href="#/news?tab=videos">All videos ${icon('arrow', 'i-sm')}</a></div>
+      <div class="cards">${news.videos.slice(0, 4).map(videoCard)}</div>
+    </section>` : ''}
 
     ${news.commLinks?.length ? html`
     <section class="panel">

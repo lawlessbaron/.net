@@ -21,6 +21,7 @@ const NAV = [
   ]],
   ['You', [
     ['#/fleet', 'hangar', 'My fleet'],
+    ['#/studio', 'play', 'Share studio'],
   ]],
   ['Community', [
     ['#/events', 'calendar', 'Events & sales'],
@@ -44,6 +45,7 @@ const ROUTES = [
   [/^\/fleet$/, () => import('./pages/fleet.js')],
   [/^\/account$/, () => import('./pages/account.js')],
   [/^\/suggestions$/, () => import('./pages/suggestions.js')],
+  [/^\/studio$/, () => import('./pages/studio.js')],
   [/^\/u\/([A-Za-z0-9_-]+)$/, () => import('./pages/fleet.js'), 'public'],
   [/^\/news$/, () => import('./pages/news.js')],
 ];
@@ -269,7 +271,7 @@ let firstSession = true;
 onSession(() => {
   renderAccountButton();
   // Once, after sign-in data has synced, re-render pages that show saved data.
-  if (firstSession && session.user && /^#\/(fleet|account|factions|guide|missions\/|suggestions)/.test(location.hash)) route();
+  if (firstSession && session.user && /^#\/(fleet|account|factions|guide|missions\/|suggestions|studio)/.test(location.hash)) route();
   firstSession = false;
 });
 
