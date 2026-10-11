@@ -121,4 +121,10 @@ export function cutout(img, { threshold = 34 } = {}) {
 export const relayed = url => (url ? `/api/img?u=${encodeURIComponent(url)}` : null);
 
 // Wiki thumbnails can be requested at any width by editing the "NNNpx-" part of the URL.
-export const wikiWidth = (url, w) => (url && /\/thumb\//.test(url) ? url.replace(/\/(\d+)px-/, `/${w}px-`) : url);
+// The wiki's image server only renders standard widths, so snap to the nearest one.
+const WIKI_WIDTHS = [640, 800, 960, 1024, 1200, 1280, 1600, 1920, 2560];
+export const wikiWidth = (url, w) => {
+  if (!url || !/\/thumb\//.test(url)) return url;
+  const snap = WIKI_WIDTHS.find(x => x >= w) || WIKI_WIDTHS[WIKI_WIDTHS.length - 1];
+  return url.replace(/\/(\d+)px-/, `/${snap}px-`);
+};

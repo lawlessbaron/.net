@@ -644,6 +644,14 @@ async function wikiPageViews(ships) {
     const twin = ships.find(o => o !== s && o.views && (o.name === s.name || o.name === b));
     if (twin) { s.views = twin.views; if (twin.paintViews) s.paintViews = twin.paintViews; if (twin.name !== s.name) s.viewsFrom = twin.name; borrowed++; }
   }
+  // Variants on the same hull (e.g. Ursa Medivac, Cyclone MT, Alliance editions) borrow a sibling's views.
+  for (const s of ships) {
+    if (s.views || s.chassis == null) continue;
+    const first = s.name.split(' ')[0].toLowerCase();
+    const twin = ships.find(o => o !== s && o.views && !o.viewsFrom && o.chassis === s.chassis && o.name.split(' ')[0].toLowerCase() === first
+      && o.length && s.length && Math.abs(o.length - s.length) / s.length < 0.12);
+    if (twin) { s.views = twin.views; s.viewsFrom = twin.name; borrowed++; }
+  }
   console.log(`  wiki in-game views: ${views} ship views, ${paints} paint views, ${borrowed} editions borrow their base ship's views`);
 }
 

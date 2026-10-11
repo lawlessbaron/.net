@@ -90,7 +90,11 @@ Run it after each patch. Sources:
 - [FleetYards](https://fleetyards.net): top/side renders, 3D holo models, paints, concept ships
 - [Roberts Space Industries](https://robertsspaceindustries.com): citizen profiles, pledge store
 
-**Ship art.** Top, side and angled renders and 3D models come from FleetYards. Painted (textured) renders exist for about 120 ships and variants; the rest are shown from their detailed plain-hull render tinted in the manufacturer's usual hull colour and labelled as approximate. Public 3D models have no textures, so the viewer offers Painted (hull colour), Plain and Hologram modes. Fully textured models would have to be extracted from the game files, which belong to CIG.
+**Ship art.**
+- **In-game views:** screenshots from six angles, plus paints, come from the [Star Citizen Wiki](https://starcitizen.tools) ship profiles. About 240 ships have them; special editions and same-hull variants reuse their base ship's shots, labelled as such.
+- **Hangar lineup and share cards:** ships are cut out of the wiki's top-down screenshots automatically in the browser, using the server's image relay.
+- **Ships without screenshots:** these fall back to FleetYards renders (painted where available, otherwise the plain hull tinted in the maker's colour, labelled approximate).
+- **3D models:** the 3D models and 3D hangar use FleetYards' RSI Holoviewer meshes, which are untextured, so they're shown in the ship's hull colour.
 
 CIG has **no official public API or login for third-party sites**, so account linking reads the public citizen page, and hangar import uses a bookmarklet that runs on the RSI site in the user's own browser (the same approach other hangar tools use).
 
