@@ -93,6 +93,10 @@ export function cutout(img, { threshold = 34 } = {}) {
     const i = stack.pop(), y = (i / W) | 0, xx = i - y * W;
     if (xx > 0) push(i - 1); if (xx < W - 1) push(i + 1); if (y > 0) push(i - W); if (y < H - 1) push(i + W);
   }
+  // If little sky was found (e.g. a hangar-floor shot), a cut-out isn't possible.
+  let skyCount = 0;
+  for (let i = 0; i < sky.length; i++) skyCount += sky[i];
+  if (skyCount < W * H * 0.3) { cutCache.set(key, null); return null; }
   // Apply alpha with a soft 1px edge and find the ship's bounding box.
   let minX = W, minY = H, maxX = 0, maxY = 0;
   for (let y = 0; y < H; y++) for (let xx = 0; xx < W; xx++) {

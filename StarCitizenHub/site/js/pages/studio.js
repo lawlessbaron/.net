@@ -25,7 +25,7 @@ async function buildFleet(L, opts) {
   const ships = entries.map(e => L.shipById.get(e.shipId)).filter(Boolean);
   // Textured: in-game top view cut out of its starfield, else painted render, else plain render.
   const imgs = await Promise.all(ships.map(async s => {
-    if (opts.style === 'real' && s.views?.above) {
+    if (opts.style === 'real' && s.views?.above && !s.views.above.bg) {
       const im = await loadImage(wikiWidth(s.views.above.url, 1000));
       const cut = im && cutout(im);
       if (cut) return { cut: cut.canvas };

@@ -644,7 +644,7 @@ function lineupView(host) {
     // Level of detail: swap to the full-resolution render when the ship is big on screen.
     // Textured mode: in-game top view (cut out of its starfield) first, then the
     // painted render, then the plain render in the maker's colours.
-    if (mode === 'real' && s.views?.above && hasRelay) {
+    if (mode === 'real' && s.views?.above && !s.views.above.bg && hasRelay) {
       const big = h * dpr > 700;
       const sp = sprite(relayed(wikiWidth(s.views.above.url, big ? 1600 : 800)), redraw);
       const spLo = big ? sprite(relayed(wikiWidth(s.views.above.url, 800)), redraw) : sp;
