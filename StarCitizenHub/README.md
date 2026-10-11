@@ -15,20 +15,50 @@ A new-player friendly field guide to **Star Citizen**: everything in one easy-to
 | **My fleet** | Link your RSI handle (public profile), import your hangar (bookmarklet or paste), and view your fleet **to scale using real top-down ship renders**, in hologram or realistic mode, with zoom-to-full-resolution, plus fleet analysis (what roles you're missing). |
 | **Events & sales** | Next event countdown, yearly event timeline, current discounts and warbonds. |
 | **News, videos & links** | Latest RSI comm-links and the community tools everyone uses. |
+| **Suggestions** | Signed-in users post ideas and upvote them; admins set status and reply. |
+| **Account** | Discord sign-in, synced data, contract log, RSI handle verification, public fleet page. |
 
 Plus global search (<kbd>Ctrl</kbd>+<kbd>K</kbd> or <kbd>/</kbd>), dark cockpit theme with a light "printed guide" theme, and a referral sign-up card for new players.
 
 ## Run it
 
-Requires Node 18+. No dependencies to install.
+Requires Node 18+.
 
 ```bash
 cd StarCitizenHub
+npm install            # one dependency: pg (only used when accounts are on)
 npm start              # http://localhost:8080
 ```
 
 `npm start` runs `server.mjs`, which serves the site and adds `/api/citizen/:handle` (reads a public RSI citizen page; browsers can't do this directly because of CORS).
 The `site/` folder also works on any static host (GitHub Pages, Netlify, Cloudflare Pages); only the live citizen lookup needs the Node server.
+
+## Accounts (optional): Discord sign-in
+
+Signed-out visitors keep everything in their browser. With accounts turned on, people can **Sign in with Discord** to:
+
+- sync their fleet, reputation, contract log and guide progress across devices,
+- log contracts with **"I finished this"** on any mission (rep is added, rank-ups are announced, every change is undoable),
+- verify their RSI handle by putting a short code in their RSI bio (no passwords, ever),
+- share a public fleet page at `#/u/<rsi-handle>`,
+- download or delete everything stored about them,
+- post and upvote ideas on the **Suggestions** board (`#/suggestions`). Admins listed in `ADMIN_DISCORD_IDS` can mark ideas Planned / In progress / Done / Declined, reply, and remove posts. Each person can post 5 suggestions a day.
+
+Turn it on by setting `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` and `PUBLIC_URL` (see `.env.example`). Tables are created automatically on start.
+
+## Deploy on Railway
+
+1. **New service from this GitHub repo.** In the service settings set **Root Directory** to `StarCitizenHub`. `railway.json` sets `npm start` and the `/api/health` health check.
+2. **Add a Postgres database** to the project.
+3. **Create a Discord app** at <https://discord.com/developers/applications>. Under OAuth2, add the redirect `https://<your-domain>/auth/discord/callback` and copy the Client ID and Client Secret.
+4. **Set service variables:**
+   - `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`
+   - `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
+   - `PUBLIC_URL` = `https://<your-domain>` (no trailing slash)
+   - `ADMIN_DISCORD_IDS` = your Discord user ID (Discord → Settings → Advanced → Developer Mode, then right-click your name → Copy User ID). Separate several with commas.
+5. **Deploy.** The logs should say `Accounts: on (Discord sign-in)`.
+
+To refresh game data after a patch, run `npm run data` locally and push the updated `site/data/` files (Railway redeploys automatically).
 
 ## Refresh the game data
 

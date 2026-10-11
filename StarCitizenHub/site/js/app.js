@@ -1,6 +1,7 @@
 // App shell: navigation, hash router, global search, theme.
 import { html, render, icon, load, store, esc, fmt, norm, errorBox, timeAgo } from './lib.js';
 import { REFERRAL } from './content/site.js';
+import { initAccount, onSession, session, signIn } from './account.js';
 
 const NAV = [
   ['Start here', [
@@ -24,6 +25,7 @@ const NAV = [
   ['Community', [
     ['#/events', 'calendar', 'Events & sales'],
     ['#/news', 'radio', 'News, videos & links'],
+    ['#/suggestions', 'bolt', 'Suggestions'],
   ]],
 ];
 
@@ -40,6 +42,9 @@ const ROUTES = [
   [/^\/paints$/, () => import('./pages/paints.js')],
   [/^\/events$/, () => import('./pages/events.js')],
   [/^\/fleet$/, () => import('./pages/fleet.js')],
+  [/^\/account$/, () => import('./pages/account.js')],
+  [/^\/suggestions$/, () => import('./pages/suggestions.js')],
+  [/^\/u\/([A-Za-z0-9_-]+)$/, () => import('./pages/fleet.js'), 'public'],
   [/^\/news$/, () => import('./pages/news.js')],
 ];
 
@@ -250,11 +255,30 @@ function starfield() {
 }
 starfield();
 
+// ---------------------------------------------------------------- account button
+function renderAccountButton() {
+  const host = document.getElementById('account-slot');
+  if (!host) return;
+  if (!session.enabled) { render(host, ''); return; }
+  render(host, session.user
+    ? html`<a class="acct-btn" href="#/account" title="Your account">${session.user.avatar ? html`<img src="${session.user.avatar}" alt="" referrerpolicy="no-referrer">` : html`<span>${session.user.name.slice(0, 1)}</span>`}<b>${session.user.rsiHandle || session.user.name}</b></a>`
+    : html`<button class="btn btn-sm discord-btn" type="button" id="signin-top">${icon('users')} Sign in</button>`);
+  document.getElementById('signin-top')?.addEventListener('click', signIn);
+}
+let firstSession = true;
+onSession(() => {
+  renderAccountButton();
+  // Once, after sign-in data has synced, re-render pages that show saved data.
+  if (firstSession && session.user && /^#\/(fleet|account|factions|guide|missions\/|suggestions)/.test(location.hash)) route();
+  firstSession = false;
+});
+
 // ---------------------------------------------------------------- boot
 (async () => {
   try { meta = await load('meta'); } catch { meta = {}; }
   renderNav();
   route();
+  initAccount();
 })();
 
 export { esc };

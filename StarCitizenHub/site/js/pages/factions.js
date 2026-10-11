@@ -1,5 +1,7 @@
-import { html, render, icon, load, lookups, fmt, norm, store, errorBox } from '../lib.js';
+import { html, render, icon, load, lookups, fmt, norm, store, errorBox, toast } from '../lib.js';
 import { missionRow, payText } from './missions.js';
+import { setRep, undoLast, getLog } from '../reptrack.js';
+import { timeAgo } from '../lib.js';
 
 const repStore = () => store.get('rep', {});
 
@@ -83,6 +85,7 @@ function detail(main, id, L, missions) {
       .sort((a, b) => gain(b, f) - gain(a, f));
     const best = available[0];
     const toGo = nextRank ? nextRank.min - mine : 0;
+    const recent = getLog().filter(e => e.factionId === f.id).slice(0, 8);
 
     render(main, html`
       <div class="crumbs"><a href="#/factions">Mission givers</a> / ${f.name}</div>
@@ -144,6 +147,8 @@ function detail(main, id, L, missions) {
               ${f.ladder?.ceiling ? html`<dt>Max reputation</dt><dd class="mono">${fmt(f.ladder.ceiling)}</dd>` : ''}
             </dl>
           </div>
+          ${recent.length ? html`<div class="panel"><div class="panel-title"><h3>Your recent contracts</h3><button class="btn btn-sm btn-ghost" type="button" id="undo-rep">Undo last</button></div>
+            <div class="link-list">${recent.map(e => html`<div style="padding:6px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px"><span>${e.missionId ? html`<a href="#/missions/${e.missionId}">${e.title}</a>` : e.title}<small class="muted" style="display:block">${timeAgo(e.t)}</small></span><span class="mono" style="color:${e.amount < 0 ? 'var(--bad)' : 'var(--good)'}">${e.kind === 'set' ? `= ${fmt(e.to)}` : `${e.amount > 0 ? '+' : ''}${fmt(e.amount)}`}</span></div>`)}</div></div>` : ''}
           ${f.givers?.length ? html`<div class="panel"><h3 style="margin-bottom:8px">Mission givers</h3><div class="link-list">${f.givers.map(g => html`<a href="#/missions?giver=${encodeURIComponent(g)}"><span>${g}</span>${icon('arrow')}</a>`)}</div></div>` : ''}
           ${available.length ? html`<div class="panel"><h3 style="margin-bottom:8px">Best rep at your rank</h3><div class="link-list">${available.slice(0, 8).map(m => html`<a href="#/missions/${m.id}"><span>${m.title}<small>+${fmt(gain(m, f))} rep · ${payText(m)}</small></span>${icon('arrow')}</a>`)}</div></div>` : ''}
         </div>
@@ -152,14 +157,13 @@ function detail(main, id, L, missions) {
     const input = document.getElementById('myrep');
     const save = () => {
       const v = input.value.trim();
-      const all = repStore();
-      if (v === '' || Number.isNaN(+v)) delete all[f.id]; else all[f.id] = Math.round(+v);
-      store.set('rep', all);
+      setRep({ factionId: f.id, faction: f.name, value: v === '' || Number.isNaN(+v) ? null : Math.round(+v) });
       draw();
     };
     document.getElementById('saverep').addEventListener('click', save);
     input.addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
-    document.getElementById('clearrep')?.addEventListener('click', () => { const all = repStore(); delete all[f.id]; store.set('rep', all); draw(); });
+    document.getElementById('clearrep')?.addEventListener('click', () => { setRep({ factionId: f.id, faction: f.name, value: null }); draw(); });
+    document.getElementById('undo-rep')?.addEventListener('click', () => { const e = undoLast(f.id); if (e) toast(`Undid: ${e.title}`); draw(); });
   };
   draw();
 }

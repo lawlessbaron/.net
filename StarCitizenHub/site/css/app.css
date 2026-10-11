@@ -490,3 +490,19 @@ main.enter { animation: page-in .35s ease both; }
 .side-ref b { color: var(--accent); font-size: .86rem; letter-spacing: .04em; }
 .side-ref:hover { background: var(--accent-soft); text-decoration: none; }
 @media (max-width: 560px) { .hero-radar { display: none; } }
+
+/* account */
+.acct-btn { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; color: var(--fg); background: var(--panel); max-width: 200px; }
+.acct-btn:hover { border-color: var(--accent); text-decoration: none; }
+.acct-btn img, .acct-btn span { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); font: 600 .8rem var(--display); color: var(--accent); flex: none; }
+.acct-btn b { font-weight: 600; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.discord-btn { background: #5865f2; border-color: #5865f2; color: #fff; }
+.discord-btn:hover { filter: brightness(1.08); border-color: #5865f2; }
+@media (max-width: 640px) { .acct-btn b { display: none; } .acct-btn { padding: 3px; } #version-chip { display: none; } }
+
+/* suggestions */
+.vote { display: grid; justify-items: center; align-content: center; gap: 2px; width: 56px; height: 64px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); cursor: pointer; align-self: start; }
+.vote b { font: 600 1.05rem var(--mono); color: var(--fg); }
+.vote:hover { border-color: var(--accent); color: var(--accent); }
+.vote.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.suggestion { align-items: start; }

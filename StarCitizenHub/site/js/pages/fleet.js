@@ -1,5 +1,6 @@
 import { html, render, icon, load, fmt, auec, usd, norm, img, store, toast, copy, errorBox } from '../lib.js';
 import { getFleet, saveFleet, addShip, removeShip } from '../fleetstore.js';
+import { session } from '../account.js';
 
 // Example fleet shown (and clearly labelled) until the user adds their own ships.
 const EXAMPLE = ['Avenger Titan', 'Cutlass Black', 'Prospector', 'Vulture', 'Freelancer MAX', 'C2 Hercules Starlifter', 'Carrack', 'Ursa', '890 Jump', 'Pisces C8X Expedition'];
@@ -27,10 +28,11 @@ const ROLES = [
 
 let resolved = null; // [{entry, ship}]
 
-export default async function fleet(main) {
+export default async function fleet(main, ctx = {}) {
   let ships;
   try { ships = await load('ships'); } catch (e) { render(main, errorBox(e)); return; }
   const byId = new Map(ships.map(s => [s.id, s]));
+  if (ctx.variant === 'public') return publicFleet(main, ctx.id, byId, ships);
   const findByName = makeMatcher(ships);
 
   const state = { view: store.get('fleetView', 'lineup') };
@@ -41,7 +43,8 @@ export default async function fleet(main) {
       ? EXAMPLE.map(n => findByName(n)).filter(Boolean).map((s, i) => ({ entry: { uid: `ex${i}`, shipId: s.id }, ship: s }))
       : entries.map(e => ({ entry: e, ship: byId.get(e.shipId) })).filter(x => x.ship);
     resolved = list;
-    const account = store.get('account', null);
+    const verified = session.user?.rsiHandle ? { ...(session.user.rsiCard || {}), handle: session.user.rsiHandle, url: `https://robertsspaceindustries.com/citizens/${session.user.rsiHandle}`, verified: true } : null;
+    const account = verified || store.get('account', null);
 
     render(main, html`
       <div class="page-head">
@@ -161,6 +164,48 @@ export default async function fleet(main) {
   draw();
 }
 
+// ---------------------------------------------------------------- public fleet page (#/u/handle)
+async function publicFleet(main, handle, byId, ships) {
+  render(main, html`<div class="loading">Loading ${handle}'s fleet…</div>`);
+  let prof;
+  try {
+    const r = await fetch(`api/u/${encodeURIComponent(handle)}`);
+    prof = r.ok ? await r.json() : null;
+  } catch { prof = null; }
+  if (!prof) {
+    render(main, html`<div class="empty"><h2>No public fleet for ${handle}</h2><p>They haven't shared their fleet here, or the handle is wrong. <a href="#/fleet">Build your own fleet</a></p></div>`);
+    return;
+  }
+  const c = prof.card || {};
+  resolved = (prof.fleet || []).map(e => ({ entry: e, ship: byId.get(e.shipId) })).filter(x => x.ship);
+  render(main, html`
+    <div class="page-head">
+      <span class="eyebrow">Public fleet</span>
+      <div class="profile-card">
+        ${c.avatar ? html`<img class="avatar" src="${c.avatar}" alt="" referrerpolicy="no-referrer">` : html`<div class="avatar">${prof.handle.slice(0, 1).toUpperCase()}</div>`}
+        <div style="display:grid;gap:4px;min-width:0"><h1 style="font-size:2rem">${c.moniker || prof.handle}</h1>
+          <span class="muted mono">@${prof.handle} <span class="chip chip-live">Verified</span></span>
+          <div class="chips">${c.org?.name ? html`<a class="chip chip-accent" href="${c.org.url}" target="_blank" rel="noopener noreferrer">${c.org.name}</a>` : ''}${c.enlisted ? html`<span class="chip">Enlisted ${c.enlisted}</span>` : ''}</div></div>
+      </div>
+    </div>
+    <div class="stat-row" style="margin-bottom:16px">${summary(resolved)}</div>
+    <div class="fleet-tabs seg" id="fleet-tabs">${[['lineup', 'Hangar lineup'], ['stats', 'Fleet analysis'], ['list', 'Ships']].map(([v, l], i) => html`<button type="button" data-v="${v}" class="${i ? '' : 'on'}">${l}</button>`)}</div>
+    <div id="fleet-view"></div>
+    <p class="muted" style="margin-top:16px">Want a page like this? <a href="#/fleet">Build your fleet</a> and sign in to share it.</p>`);
+  const host = document.getElementById('fleet-view');
+  const show = v => {
+    if (v === 'stats') return statsView(host, ships);
+    if (v === 'list') return render(host, html`<div class="cards">${resolved.map(({ entry, ship: s }) => html`<a class="card" href="#/ships/${s.id}"><div class="card-media">${img(s.img, s.name)}</div><div class="card-body"><div class="card-title">${entry.name || s.name}</div><div class="card-sub">${s.maker || ''}${entry.insurance ? ` · ${entry.insurance}` : ''}</div></div></a>`)}</div>`);
+    return lineupView(host);
+  };
+  document.getElementById('fleet-tabs').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    document.querySelectorAll('#fleet-tabs button').forEach(x => x.classList.toggle('on', x === b));
+    show(b.dataset.v);
+  });
+  show('lineup');
+}
+
 // ---------------------------------------------------------------- account
 function accountPanel(acc) {
   if (!acc) {
@@ -188,12 +233,13 @@ function accountPanel(acc) {
         </div>
       </div>
     </div>
+    ${acc.verified ? html`<p style="margin-top:10px;font-size:.88rem"><span class="chip chip-live">Verified</span> ${session.user?.publicFleet ? html`Your fleet is public: <a href="#/u/${acc.handle}">#/u/${acc.handle}</a>` : html`<a href="#/account">Make your fleet public</a> to share it.`}</p>` : ''}
     ${acc.offline ? html`<p class="muted" style="margin-top:10px;font-size:.85rem">Saved your handle. Live profile details need the Verse Atlas server (<span class="mono">npm start</span>); on a static host we can only link to your RSI page.</p>` : ''}
     <div class="hero-actions" style="margin-top:12px">
       <a class="btn btn-sm" href="${acc.url}" target="_blank" rel="noopener noreferrer">RSI profile ${icon('ext', 'i-sm')}</a>
       <a class="btn btn-sm" href="https://robertsspaceindustries.com/account/pledges" target="_blank" rel="noopener noreferrer">My hangar on RSI ${icon('ext', 'i-sm')}</a>
-      <button class="btn btn-sm btn-ghost" type="button" id="refresh-acc">Refresh</button>
-      <button class="btn btn-sm btn-ghost" type="button" id="unlink">Unlink</button>
+      ${acc.verified ? html`<a class="btn btn-sm btn-ghost" href="#/account">Account</a>` : html`<button class="btn btn-sm btn-ghost" type="button" id="refresh-acc">Refresh</button>
+      <button class="btn btn-sm btn-ghost" type="button" id="unlink">Unlink</button>`}
     </div>
   </div>`;
 }

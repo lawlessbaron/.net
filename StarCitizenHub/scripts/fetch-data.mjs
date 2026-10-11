@@ -101,6 +101,7 @@ const write = async (name, data) => {
 function cleanMissionText(s) {
   if (!s) return null;
   return s
+    .replace(/<\/?EM\d*>/gi, '')
     .replace(/~mission\(([^)|]+)(\|[^)]+)?\)/gi, (_, a) => `‹${a.replace(/([a-z])([A-Z])/g, '$1 $2')}›`)
     .replace(/\[([A-Za-z0-9_ ]+?)(?:\|[A-Za-z]+)?\]/g, (_, a) => `‹${a.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/(\D)(\d)$/, '$1 $2')}›`)
     .replace(/\r/g, '')

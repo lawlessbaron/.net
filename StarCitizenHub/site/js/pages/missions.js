@@ -1,4 +1,5 @@
-import { html, raw, render, icon, load, lookups, fmt, auec, norm, esc, store, errorBox, systemClass, ext } from '../lib.js';
+import { html, raw, render, icon, load, lookups, fmt, auec, norm, esc, store, errorBox, systemClass, ext, toast } from '../lib.js';
+import { applyRep, getLog } from '../reptrack.js';
 
 const PAGE = 50;
 const RANKS = [
@@ -148,6 +149,7 @@ async function detail(main, id) {
   const need = m.minStanding?.rep || 0;
   const eligible = mine === undefined ? null : mine >= need && (!m.maxStanding || mine < m.maxStanding.rep || m.maxStanding.rep >= (repFaction?.ladder?.ceiling || Infinity));
   const itemLink = it => (it.id && L.itemById.has(it.id) ? html`<a href="#/items/${it.id}">${it.name}</a>` : it.name);
+  const doneCount = getLog().filter(e => e.missionId === m.id && e.kind === 'done').length / Math.max(1, (m.repGain || []).filter(r => r.amount > 0 && r.factionId).length);
   const related = all.filter(x => x.id !== m.id && x.giver && x.giver === m.giver).sort((a, b) => (a.minStanding?.rep || 0) - (b.minStanding?.rep || 0)).slice(0, 8);
 
   render(main, html`
@@ -174,6 +176,16 @@ async function detail(main, id) {
     <div class="split">
       <div class="stack">
         ${m.description ? html`<div class="panel"><h2>Briefing</h2><p class="desc">${tokenize(m.description)}</p><p class="muted" style="margin-top:10px;font-size:.85rem">Words in ‹brackets› are filled in by the game when the contract is generated (target names, locations, cargo).</p></div>` : ''}
+
+        ${(m.repGain || []).some(r => r.amount > 0 && r.factionId) ? html`
+        <div class="panel tracker">
+          <div class="panel-title"><h2>Track your reputation</h2>${doneCount ? html`<span class="chip chip-live">Done ${doneCount}×</span>` : ''}</div>
+          <p class="muted" style="margin-bottom:12px">Finished or failed this contract in game? Log it and we'll update your standing${m.repGain.length > 1 ? ' with each faction' : ''}.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" type="button" id="m-done">${icon('check')} I finished this <span class="mono">(${m.repGain.filter(r => r.amount > 0).map(r => `+${fmt(r.amount)}`).join(' / ')})</span></button>
+            ${(m.repLoss || []).some(r => r.amount < 0) ? html`<button class="btn" type="button" id="m-fail">I failed it <span class="mono">(${m.repLoss.map(r => fmt(r.amount)).join(' / ')})</span></button>` : ''}
+          </div>
+        </div>` : ''}
 
         ${repFaction?.ladder ? html`
         <div class="panel">
@@ -258,4 +270,29 @@ async function detail(main, id) {
       </div>
     </div>
   `);
+
+  // Contract tracker: apply rep changes, announce rank-ups, then refresh the page.
+  const log = (list, kind) => {
+    const lines = [];
+    for (const r of list) {
+      if (!r.factionId || !r.amount) continue;
+      const f = L.factionById.get(r.factionId);
+      const before = rankName(f, store.get('rep', {})[r.factionId] ?? 0);
+      const res = applyRep({ factionId: r.factionId, faction: r.faction, amount: r.amount, missionId: m.id, title: m.title.replace(/‹|›/g, ''), kind });
+      const after = rankName(f, res.to);
+      lines.push(`${r.amount > 0 ? '+' : ''}${fmt(r.amount)} ${r.faction} → ${fmt(res.to)}${after && after !== before ? ` · ${r.amount > 0 ? 'Rank up' : 'Rank down'}: ${after}!` : ''}${res.known ? '' : ' (started from 0, set your real standing on the faction page)'}`);
+    }
+    toast(lines.join(' · ') || 'Logged');
+    detail(main, id).then(() => document.querySelector('.tracker')?.scrollIntoView({ block: 'center' }));
+  };
+  document.getElementById('m-done')?.addEventListener('click', () => log((m.repGain || []).filter(r => r.amount > 0), 'done'));
+  document.getElementById('m-fail')?.addEventListener('click', () => log((m.repLoss || []).filter(r => r.amount < 0), 'fail'));
 }
+
+function rankName(f, rep) {
+  if (!f?.ladder) return null;
+  let cur = null;
+  for (const s of f.ladder.standings) if (s.min >= 0 && rep >= s.min) cur = s.name;
+  return cur;
+}
+

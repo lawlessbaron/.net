@@ -10,5 +10,10 @@
     "data:fresh": "node scripts/fetch-data.mjs --fresh",
     "check": "node --check server.mjs && node --check scripts/fetch-data.mjs && node scripts/check.mjs"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "8.13.1"
+  }
 }

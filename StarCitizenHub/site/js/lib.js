@@ -52,13 +52,19 @@ export const debounce = (fn, ms = 150) => {
 };
 
 // localStorage that never throws (private windows, blocked storage, previews).
+// Listeners hear about every change so signed-in users can sync to their account.
+const storeListeners = new Set();
 export const store = {
   get(key, fallback = null) {
     try { const v = localStorage.getItem(`sch:${key}`); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
   },
-  set(key, value) {
-    try { localStorage.setItem(`sch:${key}`, JSON.stringify(value)); return true; } catch { return false; }
+  set(key, value, { silent = false } = {}) {
+    let ok = true;
+    try { localStorage.setItem(`sch:${key}`, JSON.stringify(value)); } catch { ok = false; }
+    if (!silent) storeListeners.forEach(fn => fn(key, value));
+    return ok;
   },
+  subscribe(fn) { storeListeners.add(fn); return () => storeListeners.delete(fn); },
 };
 
 // Data loading with a single in-flight request per file.
